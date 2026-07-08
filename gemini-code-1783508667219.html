@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>電波受信範囲シミュレーター (全世界・マルチ高度版)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary-color: #0071e3;
+            --success-color: #28a745;
+            --warning-color: #fd7e14;
+            --bg-color: #f5f5f7;
+            --panel-bg: #ffffff;
+            --text-color: #1d1d1f;
+        }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; height: 100vh; }
+        header { background: var(--panel-bg); padding: 10px 20px; box-shadow: 0 1px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
+        header h1 { margin: 0; font-size: 16px; font-weight: 600; }
+        .nict-btn { background: #eef7ff; color: var(--primary-color); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid rgba(0,113,227,0.2); }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 7; height: 100%; }
+        .sidebar { flex: 3; background: var(--panel-bg); box-shadow: -2px 0 10px rgba(0,0,0,0.05); padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 999; }
+        .section-title { font-size: 13px; font-weight: bold; color: #86868b; border-bottom: 1px solid #e5e5ea; padding-bottom: 5px; margin-bottom: 5px; }
+        .control-group { background: #fafafa; padding: 10px; border-radius: 8px; border: 1px solid #e5e5ea; font-size: 13px; }
+        label { font-weight: 600; display: block; margin-bottom: 5px; }
+        .slider-box { margin-bottom: 10px; background: #fff; padding: 8px; border-radius: 6px; border: 1px solid #e5e5ea; }
+        .slider-box span { float: right; font-weight: bold; color: var(--primary-color); }
+        .slider-box span.es-color { color: var(--warning-color); }
+        .info-box { background: #fafafa; border-left: 4px solid #ccc; padding: 10px; border-radius: 4px; font-size: 13px; line-height: 1.5; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; margin-right: 5px; }
+        .bg-normal { background: var(--success-color); }
+        .bg-es { background: var(--warning-color); }
+        @media (max-width: 768px) { .main-container { flex-direction: column; } #map { flex: 4; } .sidebar { flex: 6; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>電波受信範囲シミュレーター (全世界・マルチ高度版)</h1>
+        <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" class="nict-btn">🌐 世界の電離圏概況 (NICT) ↗</a>
+    </header>
+
+    <div class="main-container">
+        <div id="map"></div>
+        <div class="sidebar">
+            <div>
+                <div class="section-title">① 位置の決定</div>
+                <div class="control-group">
+                    <p style="margin: 0; color: #666; font-size: 12px;">世界地図上のどこでもクリックして「受信者（アンテナ）」を設置してください。</p>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">② 高度・条件設定</div>
+                <div class="control-group">
+                    <div class="slider-box">
+                        <label>受信者の高度: <span id="rx-val">2</span> m</label>
+                        <input type="range" class="sim-input" id="alt-rx" min="0" max="4000" step="10" value="2">
+                    </div>
+                    <div class="slider-box">
+                        <label>発信源の高度: <span id="tx-val">10,000</span> m</label>
+                        <input type="range" class="sim-input" id="alt-tx" min="0" max="15000" step="100" value="10000">
+                    </div>
+                    <div class="slider-box">
+                        <label>周辺エリアの電離層(Es層)強度: <span id="es-val" class="es-color">0</span> MHz</label>
+                        <input type="range" class="sim-input" id="es-intensity" min="0" max="25" step="1" value="0">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">③ 受信ステータス</div>
+                <div id="info" class="info-box">地図をクリックすると開始します。</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // 初期表示を世界地図（やや引いた視点）に設定
+    const map = L.map('map').setView([25.0, 0.0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let receiverMarker = null;
+    let normalCircle = null;
+    let esRingOuter = null;
+    let esRingInner = null;
+    let currentLatlng = null;
+
+    // 電波見通し距離の公式： 4.12 * ( √受信者高度 + √発信源高度 )
+    function calculateDistance(rxAlt, txAlt) {
+        return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
+    }
+
+    function updateSimulation() {
+        // 入力値の取得と画面表示の更新
+        const rxAlt = parseFloat(document.getElementById('alt-rx').value);
+        const txAlt = parseFloat(document.getElementById('alt-tx').value);
+        const esMhz = parseInt(document.getElementById('es-intensity').value);
+
+        document.getElementById('rx-val').innerText = rxAlt.toLocaleString();
+        document.getElementById('tx-val').innerText = txAlt.toLocaleString();
+        document.getElementById('es-val').innerText = esMhz;
+
+        if (!currentLatlng) return;
+
+        // 既存の図形をクリア
+        if (receiverMarker) map.removeLayer(receiverMarker);
+        if (normalCircle) map.removeLayer(normalCircle);
+        if (esRingOuter) map.removeLayer(esRingOuter);
+        if (esRingInner) map.removeLayer(esRingInner);
+
+        // 受信者マーカーの設置
+        receiverMarker = L.marker(currentLatlng).addTo(map).bindPopup("<b>受信者（アンテナ）</b>").openPopup();
+
+        // 1. 通常伝搬（緑の輪郭線）の計算と描画
+        const distanceKm = calculateDistance(rxAlt, txAlt);
+        normalCircle = L.circle(currentLatlng, {
+            color: '#28a745',
+            fillColor: '#28a745',
+            fillOpacity: 0.0, // 中身は完全に透明にして地図を見やすく
+            weight: 3,        // 輪郭線をくっきり
+            radius: distanceKm * 1000
+        }).addTo(map);
+
+        // 2. 電離層（Es層）反射エリアの描画（1,000km〜2,200kmのドーナツ）
+        let esActive = false;
+        if (esMhz > 0) {
+            esActive = true;
+            const opacity = Math.min(0.02 + (esMhz * 0.015), 0.4);
+            esRingOuter = L.circle(currentLatlng, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: opacity, weight: 1.5, radius: 2200 * 1000 }).addTo(map);
+            esRingInner = L.circle(currentLatlng, { color: '#fd7e14', fillColor: '#ffffff', fillOpacity: 0.0, weight: 1.5, dashArray: '6, 6', radius: 1000 * 1000 }).addTo(map);
+        }
+
+        // テキスト情報の更新
+        let infoHtml = `
+            <span class="badge bg-normal">通常時の見通し距離</span><br>
+            現在の高度設定での直接受信の限界は <strong>約 ${Math.round(distanceKm)} km</strong> です。<br><br>
+            <span class="badge bg-es">電離層（Es層）の反射</span><br>
+        `;
+
+        if (esActive) {
+            infoHtml += `周辺の電離層強度 <strong>${esMhz} MHz</strong> が反映中。<br>
+            受信者から <strong>1,000km 〜 2,200km</strong> 離れたオレンジの範囲内にある発信源からの電波が、上空の電離層で屈折・反射して届く可能性があります。`;
+            document.getElementById('info').style.borderLeftColor = "var(--warning-color)";
+        } else {
+            infoHtml += `電離層反射はありません。通常の見通し範囲（緑の線）の電波のみ受信可能です。`;
+            document.getElementById('info').style.borderLeftColor = "var(--success-color)";
+        }
+
+        document.getElementById('info').innerHTML = infoHtml;
+    }
+
+    // イベント設定
+    map.on('click', function(e) {
+        currentLatlng = e.latlng;
+        updateSimulation();
+    });
+
+    // すべての入力が変更されたらリアルタイムに再計算
+    document.querySelectorAll('.sim-input').forEach(input => {
+        input.addEventListener('input', updateSimulation);
+    });
+</script>
+</body>
+</html>
