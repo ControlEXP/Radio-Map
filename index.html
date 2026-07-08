@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OSINT 電波受信範囲シミュレーター (ターゲット検証機能搭載版)</title>
+    <title>OSINT 電波受信範囲シミュレーター (電離層反射物理判定版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -53,7 +53,7 @@
     <header>
         <div style="display: flex; align-items: center;">
             <h1>OSINT 電波受信範囲シミュレーター</h1>
-            <span class="target-band">地政学リスク・ターゲット検証版</span>
+            <span class="target-band">電離層反射・リアル物理判定版</span>
         </div>
         <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" style="background: #eef7ff; color: var(--primary-color); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid rgba(0,113,227,0.2);">🌐 NICT世界概況 ↗</a>
     </header>
@@ -133,6 +133,16 @@
         medit:    { name: "東地中海（キプロス〜イスラエル沖）", lat: 34.0, lng: 34.5,  es: 16, radiusKm: 250, season: "春〜夏（日中）" }
     };
 
+    const mountainZones = [
+        { name: "日本アルプス", lat: 36.0, lng: 138.0, radiusKm: 150, height: 3000 },
+        { name: "台湾中央山脈", lat: 24.0, lng: 121.0, radiusKm: 100, height: 3500 },
+        { name: "朝鮮半島・太白山脈", lat: 36.5, lng: 128.5, radiusKm: 120, height: 1500 },
+        { name: "ヒマラヤ・チベット高原", lat: 32.0, lng: 88.0, radiusKm: 1200, height: 5000 },
+        { name: "欧州アルプス山脈", lat: 46.0, lng: 10.0, radiusKm: 250, height: 3500 },
+        { name: "コカサス山脈(黒海東部)", lat: 42.5, lng: 44.0, radiusKm: 200, height: 4000 },
+        { name: "スカンジナビア山脈(北欧)", lat: 62.0, lng: 10.0, radiusKm: 300, height: 2000 }
+    ];
+
     const map = L.map('map').setView([35.0, 45.0], 3);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -142,36 +152,57 @@
     const esLayerGroup = L.layerGroup().addTo(map);
 
     const overlayMaps = {
-        "通常受信エリア（緑の地形遮蔽）": normalLayerGroup,
+        "通常受信エリア（マクロ地形遮蔽）": normalLayerGroup,
         "電離層反射エリア（オレンジ）": esLayerGroup
     };
     L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
 
     let receiverMarker = null, currentLatlng = null, esCloudLocation = null, activePreset = null;
-    let targetMarker = null, targetLatlng = L.latLng(35.0, 135.0); // ターゲット初期値
+    let targetMarker = null, targetLatlng = L.latLng(35.0, 135.0); 
     let isMeasuring = false, measurePoints = [], measureMarkers = [], measureLine = null;
 
     function calculateDistance(rxAlt, txAlt) {
         return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
     }
 
-    // 地形遮蔽（ギザギザ）生成用
+    function getTerrainRadiusAtAngle(center, baseRadiusKm, rxAlt, angleDeg) {
+        let maxReduction = 0;
+        for (const zone of mountainZones) {
+            const zoneLatLng = L.latLng(zone.lat, zone.lng);
+            const distToZone = center.distanceTo(zoneLatLng) / 1000;
+
+            if (distToZone < zone.radiusKm + baseRadiusKm) {
+                let zoneAngle = Math.atan2(zone.lat - center.lat, zone.lng - center.lng) * 180 / Math.PI;
+                if (zoneAngle < 0) zoneAngle += 360;
+
+                let angleDiff = Math.abs(angleDeg - zoneAngle);
+                if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+                const impactAngle = Math.min(60, (zone.radiusKm / (distToZone + 1)) * (180 / Math.PI));
+
+                if (angleDiff < impactAngle && rxAlt < zone.height) {
+                    const heightFactor = (zone.height - rxAlt) / zone.height;
+                    const distFactor = Math.max(0, 1 - (distToZone / (zone.radiusKm + baseRadiusKm)));
+                    const angleFactor = (impactAngle - angleDiff) / impactAngle;
+                    
+                    const reduction = 0.55 * heightFactor * distFactor * angleFactor;
+                    if (reduction > maxReduction) maxReduction = reduction;
+                }
+            }
+        }
+        return baseRadiusKm * (1 - maxReduction);
+    }
+
     function generateTerrainPolygonPoints(center, baseRadiusKm, rxAlt) {
-        const terrainFactor = Math.min(1.0, rxAlt / 5000); 
         const points = [];
         const steps = 64;
+        const kmPerLat = 110.57;
+        const kmPerLng = 111.32 * Math.cos(center.lat * Math.PI / 180);
+
         for (let i = 0; i < steps; i++) {
             const angle = (i * 360) / steps;
             const rad = angle * Math.PI / 180;
-            const n1 = Math.sin((center.lat + angle) * 0.15);
-            const n2 = Math.cos((center.lng - angle) * 0.25);
-            const n3 = Math.sin(angle * 0.08);
-            const noise = Math.abs(n1 + n2 + n3) / 3;
-            const maxReduction = 0.45;
-            const reduction = (1 - terrainFactor) * maxReduction * noise;
-            const currentRadiusKm = baseRadiusKm * (1 - reduction);
-            const kmPerLng = 111.32 * Math.cos(center.lat * Math.PI / 180);
-            const kmPerLat = 110.57;
+            const currentRadiusKm = getTerrainRadiusAtAngle(center, baseRadiusKm, rxAlt, angle);
             const latOffset = (currentRadiusKm * Math.sin(rad)) / kmPerLat;
             const lngOffset = (currentRadiusKm * Math.cos(rad)) / kmPerLng;
             points.push([center.lat + latOffset, center.lng + lngOffset]);
@@ -179,21 +210,12 @@
         return points;
     }
 
-    // ターゲットが地形ギザギザ（緑のエリア）の内側に入っているかのインテリジェント判定
     function checkInsideTerrain(center, target, baseRadiusKm, rxAlt) {
         const distKm = center.distanceTo(target) / 1000;
-        if (distKm > baseRadiusKm) return false;
-        let angle = Math.atan2(target.lng - center.lng, target.lat - center.lat) * 180 / Math.PI;
+        let angle = Math.atan2(target.lat - center.lat, target.lng - center.lng) * 180 / Math.PI;
         if (angle < 0) angle += 360;
-        const terrainFactor = Math.min(1.0, rxAlt / 5000);
-        const n1 = Math.sin((center.lat + angle) * 0.15);
-        const n2 = Math.cos((center.lng - angle) * 0.25);
-        const n3 = Math.sin(angle * 0.08);
-        const noise = Math.abs(n1 + n2 + n3) / 3;
-        const maxReduction = 0.45;
-        const reduction = (1 - terrainFactor) * maxReduction * noise;
-        const currentRadiusKm = baseRadiusKm * (1 - reduction);
-        return distKm <= currentRadiusKm;
+        const allowedRadiusKm = getTerrainRadiusAtAngle(center, baseRadiusKm, rxAlt, angle);
+        return distKm <= allowedRadiusKm;
     }
 
     function setupLogarithmicSlider(sliderId, numId, defaultValue) {
@@ -231,7 +253,6 @@
         const p = geoPresets[key];
         activePreset = p;
         esCloudLocation = L.latLng(p.lat, p.lng);
-        // ターゲットも雲の中に自動移動
         targetLatlng = L.latLng(p.lat - 0.3, p.lng + 0.3);
         
         document.getElementById('es-intensity').value = p.es;
@@ -253,11 +274,9 @@
 
         if (!currentLatlng) return;
 
-        // 1. 自分のアンテナ設置
         if (receiverMarker) map.removeLayer(receiverMarker);
         receiverMarker = L.marker(currentLatlng).addTo(map).bindPopup("<b>自分の観測アンテナ</b>").openPopup();
 
-        // 2. 🔴 ドラッグ可能なターゲットマーカーの管理
         if (!targetMarker) {
             targetMarker = L.marker(targetLatlng, {
                 draggable: true,
@@ -267,7 +286,6 @@
                     iconAnchor: [12, 12]
                 })
             }).addTo(map);
-            // ドラッグ終了時にシミュレーション再計算
             targetMarker.on('dragend', function(e) {
                 targetLatlng = e.target.getLatLng();
                 updateSimulation();
@@ -276,12 +294,12 @@
             targetMarker.setLatLng(targetLatlng);
         }
 
-        // 3. 通常受信範囲（ギザギザ）の描画
+        // 通常見通し距離エリア
         const baseDistanceKm = calculateDistance(rxAlt, txAlt);
         const polygonPoints = generateTerrainPolygonPoints(currentLatlng, baseDistanceKm, rxAlt);
         L.polygon(polygonPoints, { color: '#28a745', fillColor: '#28a745', fillOpacity: 0.12, weight: 2 }).addTo(normalLayerGroup);
 
-        // 4. 電離層グラデーションの描画
+        // 電離層（Es層）エリアの描画
         let esRadiusKm = activePreset ? activePreset.radiusKm : 250;
         if (esMhz === 0) esRadiusKm = 0;
 
@@ -295,23 +313,45 @@
             L.circle(esCloudLocation, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.05, weight: 1, radius: esRadiusKm * 2.0 * 1000 }).addTo(esLayerGroup);
         }
 
-        // --- ターゲットの受信自動判定ロジック ---
+        const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
         const inNormalRange = checkInsideTerrain(currentLatlng, targetLatlng, baseDistanceKm, rxAlt);
+        
+        // 💡 【物理ロジックへの修正】 
+        // 1ホップ（1回反射）で電波が届く物理的限界距離（上空100kmの雲を見上げる限界）は約2000km
+        const ES_MAX_REACH_KM = 2000; 
         
         let esStatus = "圏外";
         let esStatusColor = "#666";
+        let esReason = "";
+
         if (esRadiusKm > 0 && esCloudLocation) {
-            const distToEsKm = esCloudLocation.distanceTo(targetLatlng) / 1000;
-            if (distToEsKm <= esRadiusKm) { esStatus = "強力（高確率で受信中）"; esStatusColor = "var(--danger-color)"; }
-            else if (distToEsKm <= esRadiusKm * 1.5) { esStatus = "中程度（受信可能）"; esStatusColor = "var(--warning-color)"; }
-            else if (distToEsKm <= esRadiusKm * 2.0) { esStatus = "微弱（リーク検知）"; esStatusColor = "#e6b800"; }
+            const distRxToEs = currentLatlng.distanceTo(esCloudLocation) / 1000;  // 自アンテナ 〜 雲の距離
+            const distTxToEs = targetLatlng.distanceTo(esCloudLocation) / 1000;   // ターゲット 〜 雲の距離
+
+            // 条件1: ターゲットの電波が雲に届いているか？
+            const txInCloudZone = distTxToEs <= (ES_MAX_REACH_KM + esRadiusKm);
+            // 条件2: 自アンテナからその雲が見えているか（反射波が届くか）？
+            const rxInCloudZone = distRxToEs <= (ES_MAX_REACH_KM + esRadiusKm);
+
+            if (txInCloudZone && rxInCloudZone) {
+                // 両方クリアして初めて受信判定を行う
+                const combinedScore = Math.max(distRxToEs, distTxToEs);
+                if (distTxToEs <= esRadiusKm) { esStatus = "強力（高確率で受信中）"; esStatusColor = "var(--danger-color)"; }
+                else if (distTxToEs <= esRadiusKm * 1.5) { esStatus = "中程度（受信可能）"; esStatusColor = "var(--warning-color)"; }
+                else { esStatus = "微弱（リーク検知）"; esStatusColor = "#e6b800"; }
+            } else {
+                // どちらかが2000km以上離れていたら絶対に届かない
+                esStatus = "圏外";
+                if (!rxInCloudZone && txInCloudZone) {
+                    esReason = "（ターゲットの電波は電離層で反射していますが、自アンテナが遠すぎて届きません）";
+                }
+            }
         }
 
         const isUhfLeak = esMhz >= 20;
 
-        // ステータスUIの組み立て
         let infoHtml = `
-            <span class="badge bg-normal">通常見通しエリア</span>限界: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
+            <span class="badge bg-normal">通常見通しエリア</span>最大限界: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
             <span class="badge ${isUhfLeak ? 'bg-uhf' : 'bg-es'}">電離層異常（Es層）</span>強度: <strong>${esMhz} MHz</strong><br>
         `;
 
@@ -319,21 +359,21 @@
             infoHtml += `<span style="font-size:11px; color:#666;">地域: ${activePreset.name} (${activePreset.season})</span><br>`;
         }
 
-        // 🎯 ピンポイント自動判定結果の表示
         infoHtml += `
             <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #ccc;">
                 <b style="font-size:13px;">🎯 ターゲット傍受リアルタイム判定:</b><br>
-                ・通常見通し（直接波）: <span style="font-weight:bold; color:${inNormalRange ? 'var(--success-color)' : '#999'};">${inNormalRange ? '🟢 視界内 (直接受信中)' : '❌ 圏外 / 地形遮蔽'}</span><br>
-                ・電離層反射（異常波）: <span style="font-weight:bold; color:${esStatusColor};">${esStatus === '圏外' ? '❌ 圏外' : '⚡ ' + esStatus}</span>
+                ・アンテナからの距離: <strong>${Math.round(distToTargetKm).toLocaleString()} km</strong><br>
+                ・通常見通し（直接波）: <span style="font-weight:bold; color:${inNormalRange ? 'var(--success-color)' : '#999'};">${inNormalRange ? '🟢 視界内 (直接受信中)' : '❌ 圏外 / 地形遮蔽・地平線'}</span><br>
+                ・電離層反射（異常波）: <span style="font-weight:bold; color:${esStatusColor};">${esStatus === '圏外' ? '❌ 圏外 ' + esReason : '⚡ ' + esStatus}</span>
             </div>
         `;
 
         if (esStatus !== '圏外') {
             if (isUhfLeak) {
-                infoHtml += `<p style="margin:5px 0 0 0; font-size:11px; color:var(--danger-color); font-weight:bold;">⚠️ 警告: 強度20MHz超。ターゲットが発する暗号化UHF通信や戦術データリンクまで異常傍受している恐れがあります！</p>`;
+                infoHtml += `<p style="margin:5px 0 0 0; font-size:11px; color:var(--danger-color); font-weight:bold;">⚠️ 警告: 強度20MHz超。UHF通信の漏洩伝搬ゾーンに位置しています。</p>`;
                 document.getElementById('info').style.borderLeftColor = "var(--danger-color)";
             } else {
-                infoHtml += `<p style="margin:5px 0 0 0; font-size:11px; color:var(--warning-color); font-weight:bold;">📡 VHF戦術無線の異常傍受ゾーンに捕らえています。</p>`;
+                infoHtml += `<p style="margin:5px 0 0 0; font-size:11px; color:var(--warning-color); font-weight:bold;">📡 VHF異常伝搬による傍受可能性あり。</p>`;
                 document.getElementById('info').style.borderLeftColor = "var(--warning-color)";
             }
         } else if (inNormalRange) {
