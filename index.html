@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>電波受信範囲シミュレーター (VHF/UHF・世界対応完全版)</title>
-    <!-- Leafletの地図スタイル -->
+    <title>OSINT 電波受信範囲シミュレーター (世界・地中海・北欧対応版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- 地名検索プラグインの読み込み -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <style>
@@ -15,6 +13,7 @@
             --primary-color: #0071e3;
             --success-color: #28a745;
             --warning-color: #fd7e14;
+            --danger-color: #ff3b30;
             --bg-color: #f5f5f7;
             --panel-bg: #ffffff;
             --text-color: #1d1d1f;
@@ -23,7 +22,6 @@
         header { background: var(--panel-bg); padding: 10px 20px; box-shadow: 0 1px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; z-index: 1000; }
         header h1 { margin: 0; font-size: 15px; font-weight: 600; }
         .target-band { background: #f5f5f7; border: 1px solid #d2d2d7; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: #1d1d1f; margin-left: 10px; }
-        .nict-btn { background: #eef7ff; color: var(--primary-color); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid rgba(0,113,227,0.2); }
         .main-container { display: flex; flex: 1; overflow: hidden; }
         #map { flex: 7; height: 100%; }
         .sidebar { flex: 3; background: var(--panel-bg); box-shadow: -2px 0 10px rgba(0,0,0,0.05); padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 999; }
@@ -37,9 +35,15 @@
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; margin-right: 5px; }
         .bg-normal { background: var(--success-color); }
         .bg-es { background: var(--warning-color); }
-        .measure-btn { background: #ffffff; color: #1d1d1f; border: 1px solid #d2d2d7; width: 100%; padding: 8px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; }
-        .measure-btn:hover { background: #f5f5f7; }
+        .bg-uhf { background: var(--danger-color); }
+        
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; }
+        .preset-btn { background: #ffffff; border: 1px solid #d2d2d7; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: left; transition: all 0.2s; }
+        .preset-btn:hover { background: #f5f5f7; border-color: #86868b; }
+        .preset-desc { font-size: 9px; color: #86868b; font-weight: normal; display: block; margin-top: 2px; }
+        .measure-btn { background: #ffffff; color: #1d1d1f; border: 1px solid #d2d2d7; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; }
         .measure-active { background: #ffebeb !important; color: #ff3b30 !important; border-color: #ff3b30 !important; }
+        
         @media (max-width: 768px) { .main-container { flex-direction: column; } #map { flex: 4; } .sidebar { flex: 6; } }
     </style>
 </head>
@@ -47,90 +51,121 @@
 
     <header>
         <div style="display: flex; align-items: center;">
-            <h1>電波受信範囲シミュレーター (世界対応完全版)</h1>
-            <span class="target-band">対象：VHF / UHF帯</span>
+            <h1>OSINT 電波受信範囲シミュレーター</h1>
+            <span class="target-band">通信波対象 (成層圏: 30kｍ対応)</span>
         </div>
-        <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" class="nict-btn">🌐 世界の電離圏概況 (NICT) ↗</a>
+        <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" style="background: #eef7ff; color: var(--primary-color); text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid rgba(0,113,227,0.2);">🌐 NICT世界概況 ↗</a>
     </header>
 
     <div class="main-container">
         <div id="map"></div>
         <div class="sidebar">
+            
             <div>
-                <div class="section-title">① 位置の決定</div>
-                <div class="control-group">
-                    <p style="margin: 0; color: #666; font-size: 12px;">地図上をクリックして「受信者（アンテナ）」を設置してください。右上の虫眼鏡マークから都市名の検索も可能です。</p>
+                <div class="section-title">① 警戒地域一発配置 (地政学リスク圏)</div>
+                <div class="preset-grid">
+                    <button class="preset-btn" onclick="loadPreset('taiwan')">🌊 台湾海峡周辺<span class="preset-desc">夏(5-8月) | 18MHz | 300km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('scsea')">🏝️ 南シナ海諸島<span class="preset-desc">春-夏 | 12MHz | 200km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('korea')">🦅 朝鮮半島・日本海<span class="preset-desc">夏(6-7月) | 15MHz | 250km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('blacksea')">🌍 黒海周辺(欧州)<span class="preset-desc">春-夏 | 14MHz | 350km</span></button>
+                    <!-- 新設ボタン -->
+                    <button class="preset-btn" onclick="loadPreset('baltic')">🇪🇺 バルト海・北欧圏<span class="preset-desc">初夏(5-7月) | 13MHz | 300km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('medit')">⚓ 東地中海(キプロス等)<span class="preset-desc">春-夏 | 16MHz | 250km</span></button>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">② 高度・条件設定 (VHF/UHF基準)</div>
+                <div class="section-title">② アンテナ位置の決定</div>
+                <div class="control-group">
+                    <p style="margin: 0; color: #666; font-size: 12px;">地図上を左クリックして「自分のアンテナ」を設置してください。右上の虫眼鏡から地名検索も可能です。</p>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">③ 高度・電離層の手動微調整</div>
                 <div class="control-group">
                     <div class="slider-box">
-                        <label>受信者の高度: <span id="rx-val">100</span> m</label>
-                        <input type="range" class="sim-input" id="alt-rx" min="0" max="4000" step="10" value="100">
+                        <label>自分のアンテナ高度: <span id="rx-val">100</span> m</label>
+                        <input type="range" class="sim-input" id="alt-rx" min="0" max="30000" step="100" value="100">
                     </div>
                     <div class="slider-box">
-                        <label>発信源の高度: <span id="tx-val">3,800</span> m</label>
-                        <input type="range" class="sim-input" id="alt-tx" min="0" max="15000" step="100" value="3800">
+                        <label>ターゲット(艦船/航空機)高度: <span id="tx-val">10,000</span> m</label>
+                        <input type="range" class="sim-input" id="alt-tx" min="0" max="30000" step="100" value="10000">
                     </div>
                     <div class="slider-box">
-                        <label>周辺の電離層(Es層)強度: <span id="es-val" class="es-color">6</span> MHz</label>
+                        <label>電離層(Es層)の強度: <span id="es-val" class="es-color">6</span> MHz</label>
                         <input type="range" class="sim-input" id="es-intensity" min="0" max="25" step="1" value="6">
                     </div>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">③ 距離計測ツール</div>
+                <div class="section-title">④ 距離計測ツール</div>
                 <button id="measure-btn" class="measure-btn">📏 2点間の距離を測る (OFF)</button>
-                <p id="measure-hint" style="margin: 5px 0 0 0; color: #666; font-size: 11px; display: none; text-align: center;">地図上の2箇所をポチ・ポチとクリックしてください</p>
             </div>
 
             <div>
-                <div class="section-title">④ 受信ステータス</div>
-                <div id="info" class="info-box">地図をクリックすると開始します。</div>
+                <div class="section-title">⑤ OSINT 分析ステータス</div>
+                <div id="info" class="info-box">プリセットを選ぶか、地図をクリックすると開始します。</div>
             </div>
         </div>
     </div>
 
 <script>
-    // 初期表示
-    const map = L.map('map').setView([25.0, 125.0], 4);
+    // --- 地域の位置データ（ここを後から書き換えてアップデートできます） ---
+    const geoPresets = {
+        taiwan:   { name: "台湾海峡周辺",     lat: 24.0, lng: 122.5, es: 18, radiusKm: 300, season: "夏（5月〜8月の昼〜夕方）" },
+        scsea:    { name: "南シナ海諸島周辺", lat: 10.0, lng: 114.0, es: 12, radiusKm: 200, season: "春〜夏（午後）" },
+        korea:    { name: "朝鮮半島・日本海", lat: 38.5, lng: 132.0, es: 15, radiusKm: 250, season: "夏（6月〜7月の朝夕）" },
+        blacksea: { name: "黒海周辺（欧州）", lat: 43.5, lng: 34.5,  es: 14, radiusKm: 350, season: "春〜夏（日中）" },
+        // 新しく追加した座標データ
+        baltic:   { name: "バルト海・北欧圏（カリニングラード〜ノルウェー沖）", lat: 57.0, lng: 19.0,  es: 13, radiusKm: 300, season: "初夏〜夏（5月〜7月）" },
+        medit:    { name: "東地中海（キプロス〜イスラエル沖）", lat: 34.0, lng: 34.5,  es: 16, radiusKm: 250, season: "春〜夏（日中）" }
+    };
+
+    const map = L.map('map').setView([35.0, 45.0], 3); // 最初は少し引いて世界を見渡せる位置に
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // 地名検索ボタンを地図の右上に追加
-    L.Control.geocoder({
-        defaultMarkGeocode: false,
-        placeholder: "地名を検索（例: 東京, London）..."
-    })
+    const normalLayerGroup = L.layerGroup().addTo(map);
+    const esLayerGroup = L.layerGroup().addTo(map);
+
+    const overlayMaps = {
+        "通常受信エリア（緑）": normalLayerGroup,
+        "電離層反射エリア（オレンジ）": esLayerGroup
+    };
+    L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+
+    L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "地名・都市名を検索..." })
     .on('markgeocode', function(e) {
-        const bbox = e.geocode.bbox;
-        const poly = L.polygon([
-            bbox.getSouthEast(), bbox.getNorthEast(), bbox.getNorthWest(), bbox.getSouthWest()
-        ]);
-        map.fitBounds(poly.getBounds());
+        map.setView(e.geocode.center, 6);
         currentLatlng = e.geocode.center;
         updateSimulation();
-    })
-    .addTo(map);
+    }).addTo(map);
 
     let receiverMarker = null;
-    let normalCircle = null;
-    let esRingOuter = null;
-    let esRingInner = null;
     let currentLatlng = null;
+    let esCloudLocation = null;
+    let activePreset = null;
 
-    // 距離計測用の変数
     let isMeasuring = false;
-    let measurePoints = [];
-    let measureMarkers = [];
-    let measureLine = null;
+    let measurePoints = [], measureMarkers = [], measureLine = null;
 
     function calculateDistance(rxAlt, txAlt) {
         return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
+    }
+
+    function loadPreset(key) {
+        const p = geoPresets[key];
+        activePreset = p;
+        esCloudLocation = L.latLng(p.lat, p.lng);
+        document.getElementById('es-intensity').value = p.es;
+        map.setView([p.lat, p.lng], 5);
+        if (!currentLatlng) {
+            currentLatlng = L.latLng(p.lat - 3, p.lng + 3); // 近くにアンテナを仮置き
+        }
+        updateSimulation();
     }
 
     function updateSimulation() {
@@ -142,86 +177,81 @@
         document.getElementById('tx-val').innerText = txAlt.toLocaleString();
         document.getElementById('es-val').innerText = esMhz;
 
+        normalLayerGroup.clearLayers();
+        esLayerGroup.clearLayers();
+
         if (!currentLatlng) return;
 
         if (receiverMarker) map.removeLayer(receiverMarker);
-        if (normalCircle) map.removeLayer(normalCircle);
-        if (esRingOuter) map.removeLayer(esRingOuter);
-        if (esRingInner) map.removeLayer(esRingInner);
+        receiverMarker = L.marker(currentLatlng).addTo(map).bindPopup("<b>自分の観測アンテナ</b>").openPopup();
 
-        receiverMarker = L.marker(currentLatlng).addTo(map).bindPopup("<b>受信者（アンテナ）</b>").openPopup();
-
-        // 1. 通常の見通し距離（緑の円）
         const distanceKm = calculateDistance(rxAlt, txAlt);
-        normalCircle = L.circle(currentLatlng, {
-            color: '#28a745',
-            fillColor: '#28a745',
-            fillOpacity: 0.0,
-            weight: 3,
-            radius: distanceKm * 1000
-        }).addTo(map);
+        L.circle(currentLatlng, {
+            color: '#28a745', fillColor: '#28a745', fillOpacity: 0.05, weight: 3, radius: distanceKm * 1000
+        }).addTo(normalLayerGroup);
 
-        // 2. 電離層（Es層）反射エリアのドーナツ
-        let esActive = false;
-        if (esMhz > 0) {
-            esActive = true;
-            const opacity = Math.min(0.02 + (esMhz * 0.015), 0.4);
-            // 外側の限界線（実線：2200km）
-            esRingOuter = L.circle(currentLatlng, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: opacity, weight: 2, radius: 2200 * 1000 }).addTo(map);
-            // 内側の開始線（点線：1000km）
-            esRingInner = L.circle(currentLatlng, { color: '#fd7e14', fillColor: '#ffffff', fillOpacity: 0.0, weight: 1.5, dashArray: '6, 6', radius: 1000 * 1000 }).addTo(map);
+        let esRadiusKm = activePreset ? activePreset.radiusKm : 250;
+        if (esMhz === 0) esRadiusKm = 0;
+
+        if (esRadiusKm > 0 && esCloudLocation) {
+            L.marker(esCloudLocation, {
+                icon: L.divIcon({className: '', html: `☁️<div style="background:orange; color:white; padding:1px 4px; font-size:9px; border-radius:3px; white-space:nowrap;">Es層の中心</div>`})
+            }).addTo(esLayerGroup);
+
+            // 3層グラデーション表現
+            L.circle(esCloudLocation, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.35, weight: 1, radius: esRadiusKm * 1000 }).addTo(esLayerGroup);
+            L.circle(esCloudLocation, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.15, weight: 1, radius: esRadiusKm * 1.5 * 1000 }).addTo(esLayerGroup);
+            L.circle(esCloudLocation, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.05, weight: 1, radius: esRadiusKm * 2.0 * 1000 }).addTo(esLayerGroup);
         }
 
+        const isUhfLeak = esMhz >= 20;
+
         let infoHtml = `
-            <span class="badge bg-normal">通常時の見通し距離（緑）</span><br>
-            直進するVHF/UHF帯の電波が地球の丸みに遮られずに直接届く限界は <strong>約 ${Math.round(distanceKm)} km</strong> です。<br><br>
-            <span class="badge bg-es">電離層（Es層）の異常伝搬（オレンジ）</span><br>
+            <span class="badge bg-normal">通常見通し（緑）</span><br>
+            直接届く限界: <strong>約 ${Math.round(distanceKm)} km</strong><br>
+            <span style="font-size:11px; color:#666;">※高度30km対応。成層圏の偵察機や気球も計算可能です。</span><br><br>
+            <span class="badge ${isUhfLeak ? 'bg-uhf' : 'bg-es'}">電離層異常（オレンジ）</span><br>
         `;
 
-        if (esActive) {
-            infoHtml += `現在エリアの電離層強度 <strong>${esMhz} MHz</strong> が反映中。<br>
-            内側の<strong>点線(1,000km)</strong>から外側の<strong>実線(2,200km)</strong>の間のドーナツ圏内にある発信源からの電波が、突発性電離層に反射してワープして届く可能性があります。`;
-            document.getElementById('info').style.borderLeftColor = "var(--warning-color)";
+        if (esRadiusKm > 0 && activePreset) {
+            infoHtml += `
+                警戒地域: <strong>${activePreset.name}</strong><br>
+                発生時期目安: ${activePreset.season}<br>
+                現在の設定強度: <strong>${esMhz} MHz</strong><br>
+                グラデーションの濃いエリアにターゲット（艦船・部隊）が位置している場合、通常射程外からでも電波が屈折して漏れてくる可能性を考慮してください。<br>
+            `;
+            if (isUhfLeak) {
+                infoHtml += `<br><span style="color:var(--danger-color); font-weight:bold;">⚠️ UHF帯リーク警告:</span> 強度が20MHzを超えています。通常は跳ね返らないUHF帯（軍用無線・戦術データリンク等）の通信波まで遠方に漏洩するリスクが高まっています。`;
+                document.getElementById('info').style.borderLeftColor = "var(--danger-color)";
+            } else {
+                document.getElementById('info').style.borderLeftColor = "var(--warning-color)";
+            }
         } else {
-            infoHtml += `電離層反射はありません。通常の見通し範囲（緑の線）の直接波のみ受信可能です。`;
+            infoHtml += `現在、電離層による異常伝搬はありません。通常の緑のエリア内のみ通信可能です。`;
             document.getElementById('info').style.borderLeftColor = "var(--success-color)";
         }
 
         document.getElementById('info').innerHTML = infoHtml;
     }
 
-    // 距離計測の切り替え
+    // 距離計測ロジック
     document.getElementById('measure-btn').addEventListener('click', function() {
         isMeasuring = !isMeasuring;
         if (isMeasuring) {
-            this.innerText = "❌ 計測を終了してクリア";
-            this.classList.add('measure-active');
-            document.getElementById('measure-hint').style.display = "block";
-            // 計測開始時に一度クリア
-            clearMeasurement();
+            this.innerText = "❌ 計測クリア"; this.classList.add('measure-active'); clearMeasurement();
         } else {
-            this.innerText = "📏 2点間の距離を測る (OFF)";
-            this.classList.remove('measure-active');
-            document.getElementById('measure-hint').style.display = "none";
-            clearMeasurement();
+            this.innerText = "📏 2点間の距離を測る (OFF)"; this.classList.remove('measure-active'); clearMeasurement();
         }
     });
 
     function clearMeasurement() {
-        measureMarkers.forEach(m => map.removeLayer(m));
-        measureMarkers = [];
-        measurePoints = [];
+        measureMarkers.forEach(m => map.removeLayer(m)); measureMarkers = []; measurePoints = [];
         if (measureLine) { map.removeLayer(measureLine); measureLine = null; }
     }
 
-    // マップクリック時の処理
     map.on('click', function(e) {
         if (isMeasuring) {
-            // 距離計測モードのとき
-            if (measurePoints.length >= 2) {
-                clearMeasurement(); // 3回目のクリックで一旦クリアして新しく測る
-            }
-
+            if (measurePoints.length >= 2) clearMeasurement();
             measurePoints.push(e.latlng);
             const marker = L.marker(e.latlng, {
                 icon: L.divIcon({className: '', html: `📍<div style="background:white; border:1px solid #666; padding:2px; font-size:10px; border-radius:3px; white-space:nowrap;">地点 ${measurePoints.length}</div>`, iconAnchor: [10, 20]})
@@ -229,21 +259,12 @@
             measureMarkers.push(marker);
 
             if (measurePoints.length === 2) {
-                // 2地点揃ったら線を引いて距離を計算
-                measureLine = L.polyline(measurePoints, {color: '#0071e3', weight: 4, dashArray: '5, 10'}).addTo(map);
-                const distanceMeters = measurePoints[0].distanceTo(measurePoints[1]);
-                const distanceKm = (distanceMeters / 1000).toFixed(1);
-                
-                // 中間地点に距離をポップアップ表示
-                const midLat = (measurePoints[0].lat + measurePoints[1].lat) / 2;
-                const midLng = (measurePoints[0].lng + measurePoints[1].lng) / 2;
-                L.popup()
-                    .setLatLng([midLat, midLng])
-                    .setContent(`<b>直線距離: ${parseFloat(distanceKm).toLocaleString()} km</b>`)
-                    .openOn(map);
+                measureLine = L.polyline(measurePoints, {color: '#0071e3', weight: 3, dashArray: '5, 5'}).addTo(map);
+                const km = (measurePoints[0].distanceTo(measurePoints[1]) / 1000).toFixed(1);
+                const mid = [ (measurePoints[0].lat + measurePoints[1].lat) / 2, (measurePoints[0].lng + measurePoints[1].lng) / 2 ];
+                L.popup().setLatLng(mid).setContent(`<b>直線距離: ${parseFloat(km).toLocaleString()} km</b>`).openOn(map);
             }
         } else {
-            // 通常のアンテナ設置モードのとき
             currentLatlng = e.latlng;
             updateSimulation();
         }
@@ -252,9 +273,6 @@
     document.querySelectorAll('.sim-input').forEach(input => {
         input.addEventListener('input', updateSimulation);
     });
-
-    // 初期起動
-    updateSimulation();
 </script>
 </body>
 </html>
