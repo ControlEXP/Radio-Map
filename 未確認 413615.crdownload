@@ -1,0 +1,321 @@
+html_content = """<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>航空無線・電波受信シミュレーター Pro</title>
+    <!-- 地図ライブラリ Leaflet の読み込み -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        :root {
+            --primary-color: #0071e3;
+            --success-color: #28a745;
+            --warning-color: #fd7e14;
+            --bg-color: #f5f5f7;
+            --panel-bg: #ffffff;
+            --text-color: #1d1d1f;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background: var(--panel-bg);
+            padding: 10px 20px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .nict-btn {
+            background: #eef7ff;
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            border: 1px solid rgba(0,113,227,0.2);
+            transition: all 0.2s;
+        }
+
+        .nict-btn:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 7;
+            height: 100%;
+        }
+
+        .sidebar {
+            flex: 3;
+            background: var(--panel-bg);
+            box-shadow: -2px 0 10px rgba(0,0,0,0.05);
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 999;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #86868b;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #e5e5ea;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            background: #fafafa;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e5e5ea;
+        }
+
+        label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .info-box {
+            background: #f4fbf6;
+            border-left: 4px solid var(--success-color);
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: white;
+            font-weight: bold;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .bg-normal { background: var(--success-color); }
+        .bg-es { background: var(--warning-color); }
+
+        /* 豆知識セクション */
+        .trivia-card {
+            background: #f9f9fb;
+            border: 1px solid #e5e5ea;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .trivia-title {
+            font-weight: bold;
+            color: #333;
+            margin-top: 0;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* レスポンシブ対応（スマホサイズ） */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            #map {
+                flex: 4;
+            }
+            .sidebar {
+                flex: 6;
+                box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+            }
+            header h1 {
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>航空無線・電波受信シミュレーター Pro</h1>
+        <a href="https://swc.nict.go.jp/" target="_blank" rel="noopener noreferrer" class="nict-btn">
+            🌐 リアルタイム電離層状態 (NICT) ↗
+        </a>
+    </header>
+
+    <div class="main-container">
+        <div id="map"></div>
+        
+        <div class="sidebar">
+            <div>
+                <div class="section-title">① 操作パネル</div>
+                <div class="control-group">
+                    <label>地図をクリックして受信アンテナを設置</label>
+                    <p style="margin: 0; font-size: 12px; color: #666;">設置した場所を中心に、電波が届く範囲（緑）と、Es層反射で届く範囲（オレンジ）が表示されます。</p>
+                </div>
+                <div class="control-group" style="margin-top: 10px;">
+                    <label>飛行機の高度: <span id="alt-val" style="color:var(--primary-color); font-size:16px;">10,000</span> m</label>
+                    <input type="range" id="altitude" min="0" max="15000" step="500" value="10000">
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">② シミュレーション結果</div>
+                <div id="info" class="info-box">
+                    地図上のどこかをクリックすると、ここに計算結果と解説が表示されます。
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">💡 航空無線（エアバンド）豆知識</div>
+                <div class="trivia-card">
+                    <p class="trivia-title">✈️ なぜ飛行機の電波は遠くまで届く？</p>
+                    航空無線（VHF帯）は、光のように真っ直ぐ進む性質があります。地面同士だと建物や地球の丸み（地平線）に遮られますが、飛行機は1万メートルの超高所にいるため、遮るものがなく数百キロ先まで電波が見通せるのです。
+                </div>
+                <div class="trivia-card" style="margin-top: 10px;">
+                    <p class="trivia-title">📻 どんな声が聴こえるの？</p>
+                    パイロットと地上の管制官が「針路、高度、天候」などを英語ベースでやり取りしています。日本上空を飛ぶすべての民間機がこの電波を出しているため、受信機（または本アプリのシミュレーション）を使えば、目には見えない上空の過密な交通網を感じることができます。
+                </div>
+                <div class="trivia-card" style="margin-top: 10px;">
+                    <p class="trivia-title">💥 スポラディックE層が起きると？</p>
+                    上空100kmに突如できるプラズマの鏡（Es層）に電波がバウンドすると、地平線の向こう側にある沖縄や海外の管制、あるいは遠くを飛ぶ飛行機の無線が、普段の受信エリアを無視して突然あなたのラジオに混信してきます。
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // 地図の初期化（日本全体が見える位置）
+    const map = L.map('map').setView([36.5, 137.0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let receiverMarker = null;
+    let normalCircle = null;
+    let esRingInner = null;
+    let esRingOuter = null;
+
+    // 電波見通し距離（通常伝搬）の計算公式
+    // 距離(km) = 4.12 * ( √飛行機高度(m) + √受信アンテナ高度(2mと仮定) )
+    function calculateDistance(alt) {
+        if (alt <= 0) return 4.12 * Math.sqrt(2);
+        return 4.12 * (Math.sqrt(alt) + Math.sqrt(2));
+    }
+
+    function updateSimulation(latlng) {
+        const alt = parseFloat(document.getElementById('altitude').value);
+        document.getElementById('alt-val').innerText = alt.toLocaleString();
+
+        // 既存の図形を削除
+        if (receiverMarker) map.removeLayer(receiverMarker);
+        if (normalCircle) map.removeLayer(normalCircle);
+        if (esRingInner) map.removeLayer(esRingInner);
+        if (esRingOuter) map.removeLayer(esRingOuter);
+
+        // マーカー設置
+        receiverMarker = L.marker(latlng).addTo(map).bindPopup("<b>あなたの受信アンテナ</b>").openPopup();
+
+        // 1. 通常伝搬（緑の円）の計算と描画
+        const distanceKm = calculateDistance(alt);
+        normalCircle = L.circle(latlng, {
+            color: '#28a745',
+            fillColor: '#28a745',
+            fillOpacity: 0.12,
+            radius: distanceKm * 1000 // メートルに変換
+        }).addTo(map);
+
+        // 2. スポラディックE層反射（オレンジのドーナツ型リング：1000km〜2200km）
+        esRingOuter = L.circle(latlng, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.04, radius: 2200 * 1000, weight: 1.5 }).addTo(map);
+        esRingInner = L.circle(latlng, { color: '#fd7e14', fillColor: '#ffffff', fillOpacity: 0.0, radius: 1000 * 1000, weight: 1.5, dashArray: '6, 6' }).addTo(map);
+
+        // テキスト情報の更新
+        let infoHtml = `
+            <strong>【シミュレーション結果】</strong><br><br>
+            <span class="badge bg-normal">通常時の受信</span><br>
+            高度 <strong>${alt.toLocaleString()}m</strong> を飛行中の航空機からの電波は、あなたのアンテナから <strong>約 ${Math.round(distanceKm)} km</strong> の範囲内であれば直接キャッチ可能です！<br>
+        `;
+        
+        if(alt >= 8000) {
+            infoHtml += `<span style="font-size:12px; color:#555;">※この高度なら、東京にアンテナを置けば、大阪・名古屋・仙台周辺の上空を飛ぶパイロットの声がクッキリ聞こえる計算になります。</span><br><br>`;
+        } else {
+            infoHtml += `<br>`;
+        }
+        
+        infoHtml += `
+            <span class="badge bg-es">Es層発生時の異常受信</span><br>
+            突発的な電離層の発生により、通常範囲（緑）を遥かに超えた <strong>1,000km 〜 2,200km</strong> のドーナツ状のエリア（沖縄、台北、ソウル、マニラ付近の上空など）を飛ぶ飛行機の電波が、空でバウンドして突然舞い込んでくる可能性があります！
+        `;
+        
+        document.getElementById('info').innerHTML = infoHtml;
+        
+        // 視覚的な案内用に色を少し調整
+        document.getElementById('info').style.background = "#f4fbf6";
+        document.getElementById('info').style.borderLeftColor = "var(--success-color)";
+    }
+
+    // 地図クリックイベント
+    let currentLatlng = null;
+    map.on('click', function(e) {
+        currentLatlng = e.latlng;
+        updateSimulation(currentLatlng);
+    });
+
+    // スライダー変更イベント
+    document.getElementById('altitude').addEventListener('input', function() {
+        if (currentLatlng) {
+            updateSimulation(currentLatlng);
+        } else {
+            document.getElementById('alt-val').innerText = parseFloat(this.value).toLocaleString();
+        }
+    });
+</script>
+</body>
+</html>
+"""
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print("index.html generated successfully.")
