@@ -2,26 +2,49 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>OSINT シミュレーター</title>
+    <title>OSINT 電波受信範囲シミュレーター</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
-        header { background: #2c2c2e; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        #map { flex: 1; background: #000; }
+        :root { --primary-color: #0071e3; --bg-color: #1c1c1e; --panel-bg: #2c2c2e; --text-color: #ffffff; }
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: var(--bg-color); color: var(--text-color); font-family: sans-serif; }
+        header { background: var(--panel-bg); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3a3a3c; }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        #map { flex: 7; background: #000; }
+        .sidebar { flex: 3; background: var(--panel-bg); padding: 20px; overflow-y: auto; border-left: 1px solid #3a3a3c; }
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .preset-btn { background: #3a3a3c; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
     </style>
 </head>
 <body>
     <header>
         <div>OSINT 電波受信範囲シミュレーター</div>
-        <a href="https://swc.nict.go.jp/" target="_blank" style="color: #30a2ff;">🌐 NICT 宇宙天気情報</a>
+        <a href="https://swc.nict.go.jp/" target="_blank" style="color: #30a2ff; text-decoration: none;">🌐 NICT 宇宙天気情報</a>
     </header>
-    <div id="map"></div>
+    <div class="main-container">
+        <div id="map"></div>
+        <div class="sidebar">
+            <h3>警戒地域一発配置</h3>
+            <div class="preset-grid">
+                <button class="preset-btn" onclick="map.setView([24.0, 122.5], 6)">🌊 台湾海峡</button>
+                <button class="preset-btn" onclick="map.setView([10.0, 114.0], 6)">🏝️ 南シナ海</button>
+                <button class="preset-btn" onclick="map.setView([38.5, 132.0], 6)">🦅 日本海・朝鮮半島</button>
+            </div>
+            <p style="font-size: 12px; color: #aeaeb2; margin-top: 20px;">※地図を右クリックでメモピンを追加できます。</p>
+        </div>
+    </div>
     <script>
         const map = L.map('map').setView([24.0, 122.5], 4);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri'
-        }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
+        
+        let memoLayer = L.layerGroup().addTo(map);
+        map.on('contextmenu', function(e) {
+            const title = prompt("ピン名を入力:");
+            if(title) L.marker(e.latlng).addTo(memoLayer).bindPopup(title);
+        });
+        L.Control.geocoder().addTo(map);
     </script>
 </body>
 </html>
