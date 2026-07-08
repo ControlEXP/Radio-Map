@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OSINT 電波受信範囲シミュレーター (衛星画像＆分析メモ版)</title>
+    <title>OSINT 電波受信範囲シミュレーター (タイムトラベル＆アナリティクス版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -44,8 +44,10 @@
         .preset-btn:hover { background: #3a3a3c; border-color: #8e8e93; }
         .preset-desc { font-size: 9px; color: var(--text-secondary); font-weight: normal; display: block; margin-top: 2px; }
         
-        .clear-memo-btn { background: #ff3b30; color: white; border: none; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; margin-top: 5px; }
-        .clear-memo-btn:hover { background: #ff453a; }
+        .delete-lock-container { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; background: #2c2c2e; padding: 6px; border-radius: 6px; border: 1px solid #3a3a3c; }
+        .clear-memo-btn { background: #555; color: #aaa; border: none; flex: 1; padding: 6px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: not-allowed; transition: all 0.2s; }
+        .clear-memo-btn.unlocked { background: var(--danger-color); color: white; cursor: pointer; }
+        .clear-memo-btn.unlocked:hover { background: #ff453a; }
 
         /* リーフレットのポップアップをダークモード化 */
         .leaflet-popup-content-wrapper { background: #2c2c2e !important; color: white !important; border: 1px solid #48484a; }
@@ -58,7 +60,7 @@
     <header>
         <div style="display: flex; align-items: center;">
             <h1>OSINT 電波受信範囲シミュレーター</h1>
-            <span class="target-band">高解像度衛星画像＆分析メモ版</span>
+            <span class="target-band">アーカイブ画像＆安全ロック実装版</span>
         </div>
         <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" style="background: #1c1c1e; color: #30a2ff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid #3a3a3c;">🌐 NICT世界概況 ↗</a>
     </header>
@@ -71,9 +73,14 @@
                 <div class="section-title">📌 分析メモ機能（Google Earth風）</div>
                 <div class="control-group" style="background: #1c1c1e;">
                     <p style="margin: 0; color: #30a2ff; font-size: 11px; font-weight: bold; line-height: 1.4;">
-                        💡 地図上の何もない場所を【右クリック】（スマホは長押し）すると、タイトルと説明付きのピンを固定できます（自動保存）。
+                        💡 地図上を【右クリック】（スマホは長押し）でタイトルと説明付きのピンを固定（自動保存）。
                     </p>
-                    <button class="clear-memo-btn" onclick="clearAllMemos()">🗑️ すべてのメモピンを削除</button>
+                    <div class="delete-lock-container">
+                        <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; cursor: pointer; margin-right: 10px;">
+                            <input type="checkbox" id="delete-lock-chk" onchange="toggleDeleteLock()"> 🔓ロック解除
+                        </label>
+                        <button id="clear-memos-btn" class="clear-memo-btn" disabled onclick="clearAllMemos()">🗑️ 全ピン削除</button>
+                    </div>
                 </div>
             </div>
 
@@ -102,7 +109,7 @@
                 <div class="control-group">
                     <div class="slider-box">
                         <div class="slider-header">
-                            <span>自アンテナ高度:</span>
+                            <span>自アンテナ設置高度 (標高/運用高度):</span>
                             <div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="100"> m</div>
                         </div>
                         <input type="range" class="range-slider" id="alt-rx" min="0" max="100" step="0.1" value="5.8">
@@ -110,7 +117,7 @@
                     
                     <div class="slider-box">
                         <div class="slider-header">
-                            <span>ターゲット高度:</span>
+                            <span>ターゲット運用高度:</span>
                             <div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="10000"> m</div>
                         </div>
                         <input type="range" class="range-slider" id="alt-tx" min="0" max="100" step="0.1" value="57.7">
@@ -143,22 +150,51 @@
         medit:    { name: "東地中海（キプロス〜イスラエル沖）", lat: 34.0, lng: 34.5,  es: 16, radiusKm: 250, season: "春〜夏（日中）" }
     };
 
-    // 🗺️ Leaflet初期化：世界最高峰のEsri高解像度衛星画像タイルを採用
-    const map = L.map('map').setView([24.0, 122.5], 4);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-    }).addTo(map);
+    // 🗺️ 衛星画像の各種レイヤー定義（最新版、2022、2018、2014）
+    const esriLatest = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri World Imagery (Latest)'
+    });
+    const esri2022 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=4688', {
+        attribution: 'Esri Wayback (2022 Archive)'
+    });
+    const esri2018 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=2974', {
+        attribution: 'Esri Wayback (2018 Archive)'
+    });
+    const esri2014 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=311', {
+        attribution: 'Esri Wayback (2014 Archive)'
+    });
+
+    // 🗺️ 地名・都市名・国境・大山脈の文字オーバーレイレイヤー
+    const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri Labels & Boundaries'
+    });
+
+    // マップ初期化（最新の衛星画像と地名ラベルをはじめから表示）
+    const map = L.map('map', {
+        center: [24.0, 122.5],
+        zoom: 4,
+        layers: [esriLatest, labelsLayer]
+    });
 
     const normalLayerGroup = L.layerGroup().addTo(map);
     const esLayerGroup = L.layerGroup().addTo(map);
-    const memoLayerGroup = L.layerGroup().addTo(map); // メモピン専用レイヤー
+    const memoLayerGroup = L.layerGroup().addTo(map);
+
+    // 右上のレイヤー切り替えコントロールを拡張（タイムトラベル対応）
+    const baseMaps = {
+        "🛰️ 衛星画像 (最新)": esriLatest,
+        "⏳ 衛星画像 (2022年)": esri2022,
+        "⏳ 衛星画像 (2018年)": esri2018,
+        "⏳ 衛星画像 (2014年)": esri2014
+    };
 
     const overlayMaps = {
-        "通常受信エリア（100%正確な物理円）": normalLayerGroup,
-        "電離層反射エリア（オレンジ）": esLayerGroup,
-        "カスタム分析メモ（青ピン）": memoLayerGroup
+        "🏷️ 地名・国境・山脈ラベル": labelsLayer,
+        "通常受信エリア (物理正円)": normalLayerGroup,
+        "電離層反射エリア (オレンジ)": esLayerGroup,
+        "カスタム分析メモ (青ピン)": memoLayerGroup
     };
-    L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
 
     let receiverMarker = null, currentLatlng = null, esCloudLocation = null, activePreset = null;
     let targetMarker = null, targetLatlng = L.latLng(23.5, 122.0); 
@@ -224,15 +260,19 @@
 
         if (!currentLatlng) return;
 
+        // 🟢 自アンテナマーカーの設置と座標表記の更新
+        const rxCoordString = `北緯 ${currentLatlng.lat.toFixed(4)}° / 東経 ${currentLatlng.lng.toFixed(4)}°`;
         if (receiverMarker) map.removeLayer(receiverMarker);
-        receiverMarker = L.marker(currentLatlng).addTo(map).bindPopup("<b>自分の観測アンテナ</b>").openPopup();
+        receiverMarker = L.marker(currentLatlng).addTo(map)
+            .bindPopup(`<b>自分の観測アンテナ</b><br><span style="font-size:11px;color:#aaa;">${rxCoordString}</span>`)
+            .openPopup();
 
         if (!targetMarker) {
             targetMarker = L.marker(targetLatlng, {
                 draggable: true,
                 icon: L.divIcon({
                     className: '', 
-                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; cursor:move; text-align:center;">🔴</div><div style="background:rgba(0,0,0,0.85); border:1px solid #ff3b30; padding:2px 5px; font-size:10px; border-radius:4px; white-space:nowrap; font-weight:bold; color:#ff3b30; margin-top:-4px; box-shadow:0 2px 5px rgba(0,0,0,0.5);">🎯 ターゲット (ドラッグ可)</div>`, 
+                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; cursor:move; text-align:center;">🔴</div><div style="background:rgba(0,0,0,0.85); border:1px solid #ff3b30; padding:2px 5px; font-size:10px; border-radius:4px; white-space:nowrap; font-weight:bold; color:#ff3b30; margin-top:-4px; box-shadow:0 2px 5px rgba(0,0,0,0.5);">🎯 ターゲット</div>`, 
                     iconAnchor: [12, 12]
                 })
             }).addTo(map);
@@ -244,7 +284,6 @@
             targetMarker.setLatLng(targetLatlng);
         }
 
-        // 💡 ユーザーの提案に基づき、100%信頼できる綺麗な物理正円として描画
         const baseDistanceKm = calculateDistance(rxAlt, txAlt);
         L.circle(currentLatlng, {
             color: 'var(--success-color)',
@@ -254,7 +293,6 @@
             radius: baseDistanceKm * 1000
         }).addTo(normalLayerGroup);
 
-        // 電離層エリアの描画
         let esRadiusKm = activePreset ? activePreset.radiusKm : 250;
         if (esMhz === 0) esRadiusKm = 0;
 
@@ -265,7 +303,6 @@
 
             L.circle(esCloudLocation, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.3, weight: 1, radius: esRadiusKm * 1000 }).addTo(esLayerGroup);
             L.circle(esCloudLocation, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.1, weight: 1, radius: esRadiusKm * 1.5 * 1000 }).addTo(esLayerGroup);
-            L.circle(esCloudLocation, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.03, weight: 1, radius: esRadiusKm * 2.0 * 1000 }).addTo(esLayerGroup);
         }
 
         const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
@@ -290,14 +327,28 @@
             } else {
                 esStatus = "圏外";
                 if (!rxInCloudZone && txInCloudZone) {
-                    esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ ターゲットの反射波は出ていますが、自アンテナとの距離が物理限界(${ES_MAX_REACH_KM}km)を超えています。</span>";
+                    esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ ターゲットの反射波は出ていますが、自アンテナとの距離が物理限界を超えています。</span>";
                 }
             }
+        }
+
+        // 🏔️ 山の上に受信者がいる時の状況判定テキストの動的生成
+        let altitudeContext = "";
+        if (rxAlt > 2500) {
+            altitudeContext = `🏔️ <b>高標高マウンテン運用モード</b> (標高 ${Math.round(rxAlt)}m の山頂に位置していると仮定。地平線が広がるため見通しに有利です)`;
+        } else if (rxAlt > 500) {
+            altitudeContext = `⛰️ <b>丘陵・中標高運用モード</b> (標高 ${Math.round(rxAlt)}m の高台・山腹を想定)`;
+        } else {
+            altitudeContext = `⚓ <b>低地・沿岸運用モード</b> (設定高度: ${Math.round(rxAlt)}m)`;
         }
 
         const isUhfLeak = esMhz >= 20;
 
         let infoHtml = `
+            <div style="font-size:11px; color:#30a2ff; margin-bottom:8px; background:#1c1c1e; padding:6px; border-radius:4px; border:1px solid #3a3a3c;">
+                📍 <b>アンテナ設置位置:</b> ${rxCoordString}<br>
+                ${altitudeContext}
+            </div>
             <span class="badge bg-normal">通常見通しエリア</span>最大限界: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
             <span class="badge ${isUhfLeak ? 'bg-uhf' : 'bg-es'}">電離層異常（Es層）</span>強度: <strong>${esMhz} MHz</strong><br>
         `;
@@ -315,18 +366,23 @@
             </div>
         `;
 
-        if (esStatus !== '圏外') {
-            document.getElementById('info').style.borderLeftColor = isUhfLeak ? "var(--danger-color)" : "var(--warning-color)";
-        } else if (inNormalRange) {
-            document.getElementById('info').style.borderLeftColor = "var(--success-color)";
-        } else {
-            document.getElementById('info').style.borderLeftColor = "#48484a";
-        }
-
+        document.getElementById('info').style.borderLeftColor = (esStatus !== '圏外') ? (isUhfLeak ? "var(--danger-color)" : "var(--warning-color)") : (inNormalRange ? "var(--success-color)" : "#48484a");
         document.getElementById('info').innerHTML = infoHtml;
     }
 
-    // 📌 Google Earth風のメモピン生成＆管理ロジック
+    // 🔓 削除ボタンの誤クリック防止ロック切り替え
+    window.toggleDeleteLock = function() {
+        const chk = document.getElementById('delete-lock-chk');
+        const btn = document.getElementById('clear-memos-btn');
+        if (chk.checked) {
+            btn.removeAttribute('disabled');
+            btn.classList.add('unlocked');
+        } else {
+            btn.setAttribute('disabled', 'true');
+            btn.classList.remove('unlocked');
+        }
+    };
+
     function renderSavedMemos() {
         memoLayerGroup.clearLayers();
         savedMemos.forEach((memo, index) => {
@@ -349,9 +405,8 @@
         });
     }
 
-    // 地図右クリック（長押し）でピンを追加
     map.on('contextmenu', function(e) {
-        const title = prompt("📌 新しい分析メモピンを追加します。\n【タイトル（題名）】を入力してください：");
+        const title = prompt("📌 分析メモピンを追加します。\n【タイトル（題名）】を入力してください：");
         if (!title) return;
         const desc = prompt("【説明・メモ内容】を入力してください：") || "";
 
@@ -372,10 +427,12 @@
             savedMemos = [];
             localStorage.removeItem('osint_memos');
             renderSavedMemos();
+            // ボタンを再度ロック
+            document.getElementById('delete-lock-chk').checked = false;
+            toggleDeleteLock();
         }
     };
 
-    // 初期ロード
     renderSavedMemos();
 
     L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "地名・都市名を検索..." })
