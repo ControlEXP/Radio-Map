@@ -2,49 +2,450 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>OSINT 電波受信範囲シミュレーター</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINT 電波受信範囲シミュレーター (タイムトラベル＆アナリティクス版)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     <style>
-        :root { --primary-color: #0071e3; --bg-color: #1c1c1e; --panel-bg: #2c2c2e; --text-color: #ffffff; }
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: var(--bg-color); color: var(--text-color); font-family: sans-serif; }
-        header { background: var(--panel-bg); padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #3a3a3c; }
+        :root {
+            --primary-color: #0071e3;
+            --success-color: #34c759;
+            --warning-color: #ff9500;
+            --danger-color: #ff3b30;
+            --bg-color: #1c1c1e;
+            --panel-bg: #2c2c2e;
+            --text-color: #ffffff;
+            --text-secondary: #aeaeb2;
+        }
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; height: 100vh; }
+        header { background: var(--panel-bg); padding: 10px 20px; box-shadow: 0 1px 5px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; z-index: 1000; border-bottom: 1px solid #3a3a3c; }
+        header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+        .target-band { background: #3a3a3c; border: 1px solid #48484a; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: var(--text-color); margin-left: 10px; }
         .main-container { display: flex; flex: 1; overflow: hidden; }
-        #map { flex: 7; background: #000; }
-        .sidebar { flex: 3; background: var(--panel-bg); padding: 20px; overflow-y: auto; border-left: 1px solid #3a3a3c; }
-        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .preset-btn { background: #3a3a3c; color: white; border: none; padding: 10px; border-radius: 6px; cursor: pointer; }
+        #map { flex: 7; height: 100%; background: #000; }
+        .sidebar { flex: 3; background: var(--panel-bg); box-shadow: -2px 0 10px rgba(0,0,0,0.3); padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 999; border-left: 1px solid #3a3a3c; }
+        .section-title { font-size: 13px; font-weight: bold; color: var(--text-secondary); border-bottom: 1px solid #3a3a3c; padding-bottom: 5px; margin-bottom: 5px; }
+        .control-group { background: #232325; padding: 10px; border-radius: 8px; border: 1px solid #3a3a3c; font-size: 13px; }
+        .slider-box { margin-bottom: 12px; background: #2c2c2e; padding: 10px; border-radius: 6px; border: 1px solid #3a3a3c; }
+        .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-weight: 600; }
+        .num-input { width: 75px; padding: 4px; border: 1px solid #48484a; background: #1c1c1e; color: #30a2ff; border-radius: 4px; text-align: right; font-weight: bold; font-size: 13px; }
+        .num-input:focus { border-color: var(--primary-color); outline: none; }
+        .range-slider { width: 100%; margin: 5px 0; cursor: pointer; }
+        .info-box { background: #232325; border-left: 4px solid #48484a; padding: 10px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #f2f2f7; }
+        .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; margin-right: 5px; }
+        .bg-normal { background: var(--success-color); }
+        .bg-es { background: var(--warning-color); }
+        .bg-uhf { background: var(--danger-color); }
+        
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; }
+        .preset-btn { background: #2c2c2e; color: white; border: 1px solid #48484a; padding: 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; text-align: left; transition: all 0.2s; }
+        .preset-btn:hover { background: #3a3a3c; border-color: #8e8e93; }
+        .preset-desc { font-size: 9px; color: var(--text-secondary); font-weight: normal; display: block; margin-top: 2px; }
+        
+        .delete-lock-container { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; background: #2c2c2e; padding: 6px; border-radius: 6px; border: 1px solid #3a3a3c; }
+        .clear-memo-btn { background: #555; color: #aaa; border: none; flex: 1; padding: 6px; border-radius: 4px; font-weight: bold; font-size: 11px; cursor: not-allowed; transition: all 0.2s; }
+        .clear-memo-btn.unlocked { background: var(--danger-color); color: white; cursor: pointer; }
+        .clear-memo-btn.unlocked:hover { background: #ff453a; }
+
+        /* リーフレットのポップアップをダークモード化 */
+        .leaflet-popup-content-wrapper { background: #2c2c2e !important; color: white !important; border: 1px solid #48484a; }
+        .leaflet-popup-tip { background: #2c2c2e !important; }
+        .leaflet-popup-close-button { color: #aaa !important; }
     </style>
 </head>
 <body>
+
     <header>
-        <div>OSINT 電波受信範囲シミュレーター</div>
-        <a href="https://swc.nict.go.jp/" target="_blank" style="color: #30a2ff; text-decoration: none;">🌐 NICT 宇宙天気情報</a>
+        <div style="display: flex; align-items: center;">
+            <h1>OSINT 電波受信範囲シミュレーター</h1>
+            <span class="target-band">アーカイブ画像＆安全ロック実装版</span>
+        </div>
+        <a href="https://swc.nict.go.jp/trend/world.html" target="_blank" rel="noopener noreferrer" style="background: #1c1c1e; color: #30a2ff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid #3a3a3c;">🌐 NICT世界概況 ↗</a>
     </header>
+
     <div class="main-container">
         <div id="map"></div>
         <div class="sidebar">
-            <h3>警戒地域一発配置</h3>
-            <div class="preset-grid">
-                <button class="preset-btn" onclick="map.setView([24.0, 122.5], 6)">🌊 台湾海峡</button>
-                <button class="preset-btn" onclick="map.setView([10.0, 114.0], 6)">🏝️ 南シナ海</button>
-                <button class="preset-btn" onclick="map.setView([38.5, 132.0], 6)">🦅 日本海・朝鮮半島</button>
+            
+            <div>
+                <div class="section-title">📌 分析メモ機能（Google Earth風）</div>
+                <div class="control-group" style="background: #1c1c1e;">
+                    <p style="margin: 0; color: #30a2ff; font-size: 11px; font-weight: bold; line-height: 1.4;">
+                        💡 地図上を【右クリック】（スマホは長押し）でタイトルと説明付きのピンを固定（自動保存）。
+                    </p>
+                    <div class="delete-lock-container">
+                        <label style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; cursor: pointer; margin-right: 10px;">
+                            <input type="checkbox" id="delete-lock-chk" onchange="toggleDeleteLock()"> 🔓ロック解除
+                        </label>
+                        <button id="clear-memos-btn" class="clear-memo-btn" disabled onclick="clearAllMemos()">🗑️ 全ピン削除</button>
+                    </div>
+                </div>
             </div>
-            <p style="font-size: 12px; color: #aeaeb2; margin-top: 20px;">※地図を右クリックでメモピンを追加できます。</p>
+
+            <div>
+                <div class="section-title">① 警戒地域一発配置 (地政学リスク圏)</div>
+                <div class="preset-grid">
+                    <button class="preset-btn" onclick="loadPreset('taiwan')">🌊 台湾海峡周辺<span class="preset-desc">夏(5-8月) | 18MHz | 300km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('scsea')">🏝️ 南シナ海諸島<span class="preset-desc">春-夏 | 12MHz | 200km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('korea')">🦅 朝鮮半島・日本海<span class="preset-desc">夏(6-7月) | 15MHz | 250km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('blacksea')">🌍 黒海周辺(欧州)<span class="preset-desc">春-夏 | 14MHz | 350km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('baltic')">🇪🇺 バルト海・北欧圏<span class="preset-desc">初夏(5-7月) | 13MHz | 300km</span></button>
+                    <button class="preset-btn" onclick="loadPreset('medit')">⚓ 東地中海(キプロス等)<span class="preset-desc">春-夏 | 16MHz | 250km</span></button>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">② 基本操作</div>
+                <div class="control-group">
+                    <p style="margin: 0 0 5px 0; color: var(--success-color); font-size: 12px; font-weight: bold;">🟢 地図左クリック: 自分のアンテナ設置</p>
+                    <p style="margin: 0; color: var(--danger-color); font-size: 12px; font-weight: bold;">🔴 マーカーのドラッグ: ターゲットの移動</p>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">③ 高度・電離層の微調整</div>
+                <div class="control-group">
+                    <div class="slider-box">
+                        <div class="slider-header">
+                            <span>自アンテナ設置高度 (標高/運用高度):</span>
+                            <div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="100"> m</div>
+                        </div>
+                        <input type="range" class="range-slider" id="alt-rx" min="0" max="100" step="0.1" value="5.8">
+                    </div>
+                    
+                    <div class="slider-box">
+                        <div class="slider-header">
+                            <span>ターゲット運用高度:</span>
+                            <div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="10000"> m</div>
+                        </div>
+                        <input type="range" class="range-slider" id="alt-tx" min="0" max="100" step="0.1" value="57.7">
+                    </div>
+
+                    <div class="slider-box">
+                        <div class="slider-header">
+                            <span>電離層(Es層)強度:</span>
+                            <div><input type="number" id="num-es" class="num-input" min="0" max="25" value="6" style="color:var(--warning-color);"> MHz</div>
+                        </div>
+                        <input type="range" class="range-slider" id="es-intensity" min="0" max="25" step="1" value="6">
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-title">④ OSINT 分析ステータス</div>
+                <div id="info" class="info-box">プリセットを選ぶか、地図をクリックすると開始します。</div>
+            </div>
         </div>
     </div>
-    <script>
-        const map = L.map('map').setView([24.0, 122.5], 4);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
-        
-        let memoLayer = L.layerGroup().addTo(map);
-        map.on('contextmenu', function(e) {
-            const title = prompt("ピン名を入力:");
-            if(title) L.marker(e.latlng).addTo(memoLayer).bindPopup(title);
+
+<script>
+    const geoPresets = {
+        taiwan:   { name: "台湾海峡周辺",     lat: 24.0, lng: 122.5, es: 18, radiusKm: 300, season: "夏（5月〜8月の昼〜夕方）" },
+        scsea:    { name: "南シナ海諸島周辺", lat: 10.0, lng: 114.0, es: 12, radiusKm: 200, season: "春〜夏（午後）" },
+        korea:    { name: "朝鮮半島・日本海", lat: 38.5, lng: 132.0, es: 15, radiusKm: 250, season: "夏（6月〜7月の朝夕）" },
+        blacksea: { name: "黒海周辺（欧州）", lat: 43.5, lng: 34.5,  es: 14, radiusKm: 350, season: "春〜夏（日中）" },
+        baltic:   { name: "バルト海・北欧圏", lat: 57.0, lng: 19.0,  es: 13, radiusKm: 300, season: "初夏〜夏（5月〜7月）" },
+        medit:    { name: "東地中海（キプロス〜イスラエル沖）", lat: 34.0, lng: 34.5,  es: 16, radiusKm: 250, season: "春〜夏（日中）" }
+    };
+
+    // 🗺️ 衛星画像の各種レイヤー定義（最新版、2022、2018、2014）
+    const esriLatest = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri World Imagery (Latest)'
+    });
+    const esri2022 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=4688', {
+        attribution: 'Esri Wayback (2022 Archive)'
+    });
+    const esri2018 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=2974', {
+        attribution: 'Esri Wayback (2018 Archive)'
+    });
+    const esri2014 = L.tileLayer('https://wayback.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/WMTS/1.0.0/default/default/googlemaps/{z}/{y}/{x}?v=311', {
+        attribution: 'Esri Wayback (2014 Archive)'
+    });
+
+    // 🗺️ 地名・都市名・国境・大山脈の文字オーバーレイレイヤー
+    const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Esri Labels & Boundaries'
+    });
+
+    // マップ初期化（最新の衛星画像と地名ラベルをはじめから表示）
+    const map = L.map('map', {
+        center: [24.0, 122.5],
+        zoom: 4,
+        layers: [esriLatest, labelsLayer]
+    });
+
+    const normalLayerGroup = L.layerGroup().addTo(map);
+    const esLayerGroup = L.layerGroup().addTo(map);
+    const memoLayerGroup = L.layerGroup().addTo(map);
+
+    // 右上のレイヤー切り替えコントロールを拡張（タイムトラベル対応）
+    const baseMaps = {
+        "🛰️ 衛星画像 (最新)": esriLatest,
+        "⏳ 衛星画像 (2022年)": esri2022,
+        "⏳ 衛星画像 (2018年)": esri2018,
+        "⏳ 衛星画像 (2014年)": esri2014
+    };
+
+    const overlayMaps = {
+        "🏷️ 地名・国境・山脈ラベル": labelsLayer,
+        "通常受信エリア (物理正円)": normalLayerGroup,
+        "電離層反射エリア (オレンジ)": esLayerGroup,
+        "カスタム分析メモ (青ピン)": memoLayerGroup
+    };
+    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+    let receiverMarker = null, currentLatlng = null, esCloudLocation = null, activePreset = null;
+    let targetMarker = null, targetLatlng = L.latLng(23.5, 122.0); 
+    let savedMemos = JSON.parse(localStorage.getItem('osint_memos') || '[]');
+
+    function calculateDistance(rxAlt, txAlt) {
+        return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
+    }
+
+    function setupLogarithmicSlider(sliderId, numId, defaultValue) {
+        const slider = document.getElementById(sliderId);
+        const numInput = document.getElementById(numId);
+        slider.value = Math.sqrt(defaultValue / 30000) * 100;
+        numInput.value = defaultValue;
+
+        slider.addEventListener('input', function() {
+            const pct = parseFloat(this.value);
+            numInput.value = Math.round(Math.pow(pct / 100, 2) * 30000);
+            updateSimulation();
         });
-        L.Control.geocoder().addTo(map);
-    </script>
+        numInput.addEventListener('input', function() {
+            let alt = parseFloat(this.value) || 0;
+            if (alt > 30000) alt = 30000; if (alt < 0) alt = 0; this.value = alt;
+            slider.value = Math.sqrt(alt / 30000) * 100;
+            updateSimulation();
+        });
+    }
+
+    const esSlider = document.getElementById('es-intensity');
+    const esNum = document.getElementById('num-es');
+    esSlider.addEventListener('input', function() { esNum.value = this.value; updateSimulation(); });
+    esNum.addEventListener('input', function() {
+        let val = parseInt(this.value) || 0;
+        if (val > 25) val = 25; if (val < 0) val = 0; this.value = val;
+        esSlider.value = val; updateSimulation();
+    });
+
+    setupLogarithmicSlider('alt-rx', 'num-alt-rx', 100);
+    setupLogarithmicSlider('alt-tx', 'num-alt-tx', 10000);
+
+    function loadPreset(key) {
+        const p = geoPresets[key];
+        activePreset = p;
+        esCloudLocation = L.latLng(p.lat, p.lng);
+        targetLatlng = L.latLng(p.lat - 0.3, p.lng + 0.3);
+        
+        document.getElementById('es-intensity').value = p.es;
+        document.getElementById('num-es').value = p.es;
+        map.setView([p.lat, p.lng], 5);
+        if (!currentLatlng) {
+            currentLatlng = L.latLng(p.lat - 2, p.lng + 2);
+        }
+        updateSimulation();
+    }
+
+    function updateSimulation() {
+        const rxAlt = parseFloat(document.getElementById('num-alt-rx').value) || 0;
+        const txAlt = parseFloat(document.getElementById('num-alt-tx').value) || 0;
+        const esMhz = parseInt(document.getElementById('num-es').value) || 0;
+
+        normalLayerGroup.clearLayers();
+        esLayerGroup.clearLayers();
+
+        if (!currentLatlng) return;
+
+        // 🟢 自アンテナマーカーの設置と座標表記の更新
+        const rxCoordString = `北緯 ${currentLatlng.lat.toFixed(4)}° / 東経 ${currentLatlng.lng.toFixed(4)}°`;
+        if (receiverMarker) map.removeLayer(receiverMarker);
+        receiverMarker = L.marker(currentLatlng).addTo(map)
+            .bindPopup(`<b>自分の観測アンテナ</b><br><span style="font-size:11px;color:#aaa;">${rxCoordString}</span>`)
+            .openPopup();
+
+        if (!targetMarker) {
+            targetMarker = L.marker(targetLatlng, {
+                draggable: true,
+                icon: L.divIcon({
+                    className: '', 
+                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; cursor:move; text-align:center;">🔴</div><div style="background:rgba(0,0,0,0.85); border:1px solid #ff3b30; padding:2px 5px; font-size:10px; border-radius:4px; white-space:nowrap; font-weight:bold; color:#ff3b30; margin-top:-4px; box-shadow:0 2px 5px rgba(0,0,0,0.5);">🎯 ターゲット</div>`, 
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(map);
+            targetMarker.on('dragend', function(e) {
+                targetLatlng = e.target.getLatLng();
+                updateSimulation();
+            });
+        } else {
+            targetMarker.setLatLng(targetLatlng);
+        }
+
+        const baseDistanceKm = calculateDistance(rxAlt, txAlt);
+        L.circle(currentLatlng, {
+            color: 'var(--success-color)',
+            fillColor: 'var(--success-color)',
+            fillOpacity: 0.15,
+            weight: 2,
+            radius: baseDistanceKm * 1000
+        }).addTo(normalLayerGroup);
+
+        let esRadiusKm = activePreset ? activePreset.radiusKm : 250;
+        if (esMhz === 0) esRadiusKm = 0;
+
+        if (esRadiusKm > 0 && esCloudLocation) {
+            L.marker(esCloudLocation, {
+                icon: L.divIcon({className: '', html: `<div style="font-size:16px;">☁️</div><div style="background:var(--warning-color); color:black; font-weight:bold; padding:1px 4px; font-size:9px; border-radius:3px; white-space:nowrap; margin-top:-2px;">Es層中心</div>`})
+            }).addTo(esLayerGroup);
+
+            L.circle(esCloudLocation, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.3, weight: 1, radius: esRadiusKm * 1000 }).addTo(esLayerGroup);
+            L.circle(esCloudLocation, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.1, weight: 1, radius: esRadiusKm * 1.5 * 1000 }).addTo(esLayerGroup);
+        }
+
+        const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
+        const inNormalRange = distToTargetKm <= baseDistanceKm;
+        
+        const ES_MAX_REACH_KM = 2000; 
+        let esStatus = "圏外";
+        let esStatusColor = "#8e8e93";
+        let esReason = "";
+
+        if (esRadiusKm > 0 && esCloudLocation) {
+            const distRxToEs = currentLatlng.distanceTo(esCloudLocation) / 1000;
+            const distTxToEs = targetLatlng.distanceTo(esCloudLocation) / 1000;
+
+            const txInCloudZone = distTxToEs <= (ES_MAX_REACH_KM + esRadiusKm);
+            const rxInCloudZone = distRxToEs <= (ES_MAX_REACH_KM + esRadiusKm);
+
+            if (txInCloudZone && rxInCloudZone) {
+                if (distTxToEs <= esRadiusKm) { esStatus = "強力（高確率で受信中）"; esStatusColor = "var(--danger-color)"; }
+                else if (distTxToEs <= esRadiusKm * 1.5) { esStatus = "中程度（受信可能）"; esStatusColor = "var(--warning-color)"; }
+                else { esStatus = "微弱（リーク検知）"; esStatusColor = "#ffd60a"; }
+            } else {
+                esStatus = "圏外";
+                if (!rxInCloudZone && txInCloudZone) {
+                    esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ ターゲットの反射波は出ていますが、自アンテナとの距離が物理限界を超えています。</span>";
+                }
+            }
+        }
+
+        // 🏔️ 山の上に受信者がいる時の状況判定テキストの動的生成
+        let altitudeContext = "";
+        if (rxAlt > 2500) {
+            altitudeContext = `🏔️ <b>高標高マウンテン運用モード</b> (標高 ${Math.round(rxAlt)}m の山頂に位置していると仮定。地平線が広がるため見通しに有利です)`;
+        } else if (rxAlt > 500) {
+            altitudeContext = `⛰️ <b>丘陵・中標高運用モード</b> (標高 ${Math.round(rxAlt)}m の高台・山腹を想定)`;
+        } else {
+            altitudeContext = `⚓ <b>低地・沿岸運用モード</b> (設定高度: ${Math.round(rxAlt)}m)`;
+        }
+
+        const isUhfLeak = esMhz >= 20;
+
+        let infoHtml = `
+            <div style="font-size:11px; color:#30a2ff; margin-bottom:8px; background:#1c1c1e; padding:6px; border-radius:4px; border:1px solid #3a3a3c;">
+                📍 <b>アンテナ設置位置:</b> ${rxCoordString}<br>
+                ${altitudeContext}
+            </div>
+            <span class="badge bg-normal">通常見通しエリア</span>最大限界: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
+            <span class="badge ${isUhfLeak ? 'bg-uhf' : 'bg-es'}">電離層異常（Es層）</span>強度: <strong>${esMhz} MHz</strong><br>
+        `;
+
+        if (esRadiusKm > 0 && activePreset) {
+            infoHtml += `<span style="font-size:11px; color:var(--text-secondary);">地域: ${activePreset.name} (${activePreset.season})</span><br>`;
+        }
+
+        infoHtml += `
+            <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #48484a;">
+                <b style="font-size:13px; color:#30a2ff;">🎯 ターゲット傍受リアルタイム判定:</b><br>
+                ・直線距離: <strong>${Math.round(distToTargetKm).toLocaleString()} km</strong><br>
+                ・通常見通し（直接波）: <span style="font-weight:bold; color:${inNormalRange ? 'var(--success-color)' : '#8e8e93'};">${inNormalRange ? '🟢 視界内 (直接受信中)' : '❌ 圏外 / 地平線の影'}</span><br>
+                ・電離層反射（異常波）: <span style="font-weight:bold; color:${esStatusColor};">${esStatus === '圏外' ? '❌ 圏外' : '⚡ ' + esStatus}</span>${esReason}
+            </div>
+        `;
+
+        document.getElementById('info').style.borderLeftColor = (esStatus !== '圏外') ? (isUhfLeak ? "var(--danger-color)" : "var(--warning-color)") : (inNormalRange ? "var(--success-color)" : "#48484a");
+        document.getElementById('info').innerHTML = infoHtml;
+    }
+
+    // 🔓 削除ボタンの誤クリック防止ロック切り替え
+    window.toggleDeleteLock = function() {
+        const chk = document.getElementById('delete-lock-chk');
+        const btn = document.getElementById('clear-memos-btn');
+        if (chk.checked) {
+            btn.removeAttribute('disabled');
+            btn.classList.add('unlocked');
+        } else {
+            btn.setAttribute('disabled', 'true');
+            btn.classList.remove('unlocked');
+        }
+    };
+
+    function renderSavedMemos() {
+        memoLayerGroup.clearLayers();
+        savedMemos.forEach((memo, index) => {
+            const marker = L.marker([memo.lat, memo.lng], {
+                icon: L.divIcon({
+                    className: '',
+                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; text-align:center;">📌</div><div style="background:rgba(28,28,30,0.95); border:1px solid #30a2ff; color:white; padding:2px 6px; font-size:10px; border-radius:4px; white-space:nowrap; margin-top:-4px; box-shadow:0 2px 4px rgba(0,0,0,0.4); font-weight:bold;">${memo.title}</div>`,
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(memoLayerGroup);
+
+            const popupContent = `
+                <div style="color:white; min-width:150px;">
+                    <h3 style="margin:0 0 5px 0; font-size:14px; color:#30a2ff; border-bottom:1px solid #48484a; padding-bottom:3px;">${memo.title}</h3>
+                    <p style="margin:0 0 8px 0; font-size:12px; white-space:pre-wrap; color:#f2f2f7;">${memo.desc}</p>
+                    <button onclick="deleteMemo(${index})" style="background:var(--danger-color); color:white; border:none; padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; width:100%;">🗑️ このピンを削除</button>
+                </div>
+            `;
+            marker.bindPopup(popupContent);
+        });
+    }
+
+    map.on('contextmenu', function(e) {
+        const title = prompt("📌 分析メモピンを追加します。\n【タイトル（題名）】を入力してください：");
+        if (!title) return;
+        const desc = prompt("【説明・メモ内容】を入力してください：") || "";
+
+        savedMemos.push({ lat: e.latlng.lat, lng: e.latlng.lng, title: title, desc: desc });
+        localStorage.setItem('osint_memos', JSON.stringify(savedMemos));
+        renderSavedMemos();
+    });
+
+    window.deleteMemo = function(index) {
+        map.closePopup();
+        savedMemos.splice(index, 1);
+        localStorage.setItem('osint_memos', JSON.stringify(savedMemos));
+        renderSavedMemos();
+    };
+
+    window.clearAllMemos = function() {
+        if (confirm("本当にすべてのメモピンを削除しますか？")) {
+            savedMemos = [];
+            localStorage.removeItem('osint_memos');
+            renderSavedMemos();
+            // ボタンを再度ロック
+            document.getElementById('delete-lock-chk').checked = false;
+            toggleDeleteLock();
+        }
+    };
+
+    renderSavedMemos();
+
+    L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "地名・都市名を検索..." })
+    .on('markgeocode', function(e) {
+        map.setView(e.geocode.center, 6);
+        currentLatlng = e.geocode.center;
+        updateSimulation();
+    }).addTo(map);
+
+    map.on('click', function(e) {
+        currentLatlng = e.latlng;
+        updateSimulation();
+    });
+</script>
 </body>
 </html>
