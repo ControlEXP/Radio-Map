@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>航空無線・電波受信シミュレーター</title>
+    <!-- 地図ライブラリ Leaflet の読み込み -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; background: #f0f2f5; }
+        #map { width: 100vw; height: 70vh; }
+        .panel { padding: 15px; background: white; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); height: 30vh; box-sizing: border-box; overflow-y: auto; }
+        .control-group { margin-bottom: 12px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; color: #333; }
+        input[type="range"] { width: 100%; max-width: 400px; }
+        .info-box { background: #eef9ff; border-left: 4px solid #0095ff; padding: 10px; margin-top: 10px; border-radius: 4px; }
+        .badge { display: inline-block; padding: 3px 7px; border-radius: 3px; font-size: 12px; color: white; font-weight: bold; margin-right: 5px; }
+        .bg-normal { background: #28a745; }
+        .bg-es { background: #fd7e14; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <div class="panel">
+        <div class="control-group">
+            <label>① 地図上をどこでもクリックして「受信アンテナ」を設置してください</label>
+        </div>
+        <div class="control-group">
+            <label>② 発信源（飛行機）の高度: <span id="alt-val">10,000</span> メートル</label>
+            <input type="range" id="altitude" min="0" max="15000" step="500" value="10000">
+        </div>
+        <div id="info" class="info-box">地図をクリックするとシミュレーションを開始します。</div>
+    </div>
+
+<script>
+    // 地図の初期化（日本全体が見える位置）
+    const map = L.map('map').setView([36.5, 137.0], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let receiverMarker = null;
+    let normalCircle = null;
+    let esRingInner = null;
+    let esRingOuter = null;
+
+    // 電波見通し距離（通常伝搬）の計算公式
+    // 距離(km) = 4.12 * ( √飛行機高度(m) + √受信アンテナ高度(2mと仮定) )
+    function calculateDistance(alt) {
+        if (alt <= 0) return 4.12 * Math.sqrt(2);
+        return 4.12 * (Math.sqrt(alt) + Math.sqrt(2));
+    }
+
+    function updateSimulation(latlng) {
+        const alt = parseFloat(document.getElementById('altitude').value);
+        document.getElementById('alt-val').innerText = alt.toLocaleString();
+
+        // 既存の図形を削除
+        if (receiverMarker) map.removeLayer(receiverMarker);
+        if (normalCircle) map.removeLayer(normalCircle);
+        if (esRingInner) map.removeLayer(esRingInner);
+        if (esRingOuter) map.removeLayer(esRingOuter);
+
+        // マーカー設置
+        receiverMarker = L.marker(latlng).addTo(map).bindPopup("<b>あなたの受信アンテナ</b>").openPopup();
+
+        // 1. 通常伝搬（緑の円）の計算と描画
+        const distanceKm = calculateDistance(alt);
+        normalCircle = L.circle(latlng, {
+            color: '#28a745',
+            fillColor: '#28a745',
+            fillOpacity: 0.15,
+            radius: distanceKm * 1000 // メートルに変換
+        }).addTo(map);
+
+        // 2. スポラディックE層反射（オレンジのドーナツ型リング：1000km〜2200km）
+        // Leafletでドーナツを描くため、外円と内円を重ねる
+        esRingOuter = L.circle(latlng, { color: '#fd7e14', fillColor: '#fd7e14', fillOpacity: 0.05, radius: 2200 * 1000, weight: 1 }).addTo(map);
+        esRingInner = L.circle(latlng, { color: '#fd7e14', fillColor: '#f0f2f5', fillOpacity: 0.8, radius: 1000 * 1000, weight: 1, dashArray: '5, 5' }).addTo(map);
+
+        // テキスト情報の更新
+        let infoHtml = `
+            <strong>【受信シミュレーション結果】</strong><br>
+            <span class="badge bg-normal">通常時</span> 高度 ${alt.toLocaleString()}m の飛行機からの電波は、<strong>約 ${Math.round(distanceKm)} km</strong> 先から直接届きます。<br>
+        `;
+        
+        if(alt >= 2000) {
+            infoHtml += `（東京設置なら、大阪や仙台上空のパイロットの声が直接聞こえる距離です）<br>`;
+        }
+        
+        infoHtml += `
+            <span class="badge bg-es">Es層発生時</span> 雲のように現れる電離層に電波がバウンドするため、普段は絶対届かない<strong>1,000km 〜 2,200km</strong> 離れた上空（沖縄・台湾・中国・ロシア周辺）を飛ぶ飛行機の電波が突然受信できるようになります！
+        `;
+        
+        document.getElementById('info').innerHTML = infoHtml;
+    }
+
+    // 地図クリックイベント
+    let currentLatlng = null;
+    map.on('click', function(e) {
+        currentLatlng = e.latlng;
+        updateSimulation(currentLatlng);
+    });
+
+    // スライダー変更イベント
+    document.getElementById('altitude').addEventListener('input', function() {
+        if (currentLatlng) {
+            updateSimulation(currentLatlng);
+        } else {
+            document.getElementById('alt-val').innerText = parseFloat(this.value).toLocaleString();
+        }
+    });
+</script>
+</body>
+</html>
