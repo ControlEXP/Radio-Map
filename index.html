@@ -25,7 +25,6 @@
         header h1 { margin: 0; font-size: 14px; font-weight: 600; }
         .target-band { background: #3a3a3c; border: 1px solid #48484a; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: var(--text-color); margin-left: 10px; }
         
-        /* クレジット & コントロールスタイル */
         .header-controls { display: flex; align-items: center; gap: 12px; }
         .developer-credit { font-size: 11px; font-weight: bold; color: #30a2ff; background: rgba(48, 162, 255, 0.1); border: 1px solid rgba(48, 162, 255, 0.3); padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px; }
         .lang-switch { display: flex; background: #1c1c1e; border: 1px solid #48484a; padding: 2px; border-radius: 6px; }
@@ -36,7 +35,6 @@
         #map { flex: 7; height: 100%; background: #000; }
         .sidebar { flex: 3; background: var(--panel-bg); box-shadow: -2px 0 10px rgba(0,0,0,0.3); padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 999; border-left: 1px solid #3a3a3c; }
         
-        /* スマホ対応（レスポンシブCSS） */
         @media (max-width: 768px) {
             body:not(.forced-pc) .main-container { flex-direction: column; }
             body:not(.forced-pc) #map { flex: none; height: 45vh; }
@@ -63,8 +61,7 @@
         .preset-btn:hover { background: #3a3a3c; border-color: #8e8e93; }
         .preset-desc { font-size: 9px; color: var(--text-secondary); font-weight: normal; display: block; margin-top: 2px; }
         
-        /* 折りたたみ解説UI */
-        .explain-details { background: #232325; border: 1px solid #3a3a3c; border-radius: 8px; overflow: hidden; }
+        .explain-details { background: #232325; border: 1px solid #3a3a3c; border-radius: 8px; overflow: hidden; width: 100%; box-sizing: border-box; }
         .explain-details summary { padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; color: #30a2ff; user-select: none; background: #1c1c1e; }
         .explain-details summary:hover { background: #232325; }
         .explain-content { padding: 12px; font-size: 11px; line-height: 1.5; color: var(--text-secondary); border-top: 1px solid #3a3a3c; }
@@ -73,7 +70,6 @@
         .mode-btn { background: #3a3a3c; color: white; border: 1px solid #545456; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; transition: background 0.2s; }
         .mode-btn:hover { background: #48484a; }
         
-        /* 距離計測用スタイル */
         .measure-btn-active { background: var(--measure-color) !important; border-color: var(--measure-color) !important; }
         .measure-tooltip { background: var(--measure-color) !important; color: white !important; border: none !important; font-weight: bold !important; font-size: 11px !important; box-shadow: 0 2px 5px rgba(0,0,0,0.4); padding: 2px 6px !important; border-radius: 4px; }
         .measure-tooltip::before { border-right-color: var(--measure-color) !important; }
@@ -95,10 +91,7 @@
             <span class="target-band" data-ja="地球曲率＆範囲可変版" data-en="Curvature & Variable Es">地球曲率＆範囲可変版</span>
         </div>
         <div class="header-controls">
-            <!-- 🎖️ Control氏 開発者クレジット表示枠 -->
             <div class="developer-credit" data-ja="システム設計: Control" data-en="System Architect: Control">システム設計: Control</div>
-            
-            <!-- 言語切り替えトグル -->
             <div class="lang-switch">
                 <button id="btn-lang-ja" class="lang-btn active" onclick="switchLanguage('ja')">JA</button>
                 <button id="btn-lang-en" class="lang-btn" onclick="switchLanguage('en')">EN</button>
@@ -124,7 +117,7 @@
                 <div class="section-title" data-ja="① 警戒地域一発配置" data-en="① Tactical Region Presets">① 警戒地域一発配置</div>
                 <div class="preset-grid">
                     <button class="preset-btn" onclick="loadPreset('taiwan')"><span data-ja="🌊 台湾海峡周辺" data-en="🌊 Taiwan Strait">🌊 台湾海峡周辺</span><span class="preset-desc" data-ja="夏 | 18MHz | 東西400×南北200" data-en="Summer | 18MHz | X:400, Y:200km">夏 | 18MHz | 東西400×南北200</span></button>
-                    <button class="preset-btn" onclick="loadPreset('scsea')"><span data-ja="🏝️ 南シナ海諸島" data-en="🏝️ South China Sea">🏝️ 南シナ海諸島</span><span class="preset-desc" data-ja="春-夏 | 12MHz | 東西300×南北150" data-en="Spring | 12MHz | X:300, Y:150km">春-夏 | 12MHz | 東西300×南北150</span></button>
+                    <button class="preset-btn" onclick="loadPreset('scsea')"><span data-ja="🏝️ 南シナ海諸島周辺" data-en="🏝️ South China Sea">🏝️ 南シナ海諸島周辺</span><span class="preset-desc" data-ja="春-夏 | 12MHz | 東西300×南北150" data-en="Spring | 12MHz | X:300, Y:150km">春-夏 | 12MHz | 東西300×南北150</span></button>
                     <button class="preset-btn" onclick="loadPreset('korea')"><span data-ja="🦅 朝鮮半島・日本海" data-en="🦅 Korean Peninsula">🦅 朝鮮半島・日本海</span><span class="preset-desc" data-ja="夏 | 15MHz | 東西350×南北180" data-en="Summer | 15MHz | X:350, Y:180km">夏 | 15MHz | 東西350×南北180</span></button>
                     <button class="preset-btn" onclick="loadPreset('blacksea')"><span data-ja="🌍 黒海周辺(欧州)" data-en="🌍 Black Sea Region">🌍 黒海周辺(欧州)</span><span class="preset-desc" data-ja="春-夏 | 14MHz | 東西450×南北220" data-en="Spring | 14MHz | X:450, Y:220km">春-夏 | 14MHz | 東西450×南北220</span></button>
                     <button class="preset-btn" onclick="loadPreset('baltic')"><span data-ja="🇪🇺 バルト海・北欧" data-en="🇪🇺 Baltic Sea / Nordic">🇪🇺 バルト海・北欧</span><span class="preset-desc" data-ja="初夏 | 13MHz | 東西400×南北200" data-en="Solstice | 13MHz | X:400, Y:200km">初夏 | 13MHz | 東西400×南北200</span></button>
@@ -141,7 +134,6 @@
                 </div>
             </div>
 
-            <!-- 📏 距離計測ツールセクション（新設） -->
             <div>
                 <div class="section-title" data-ja="📏 距離計測ツール" data-en="📏 Distance Measure Tool">📏 距離計測ツール</div>
                 <div class="control-group" style="display: flex; flex-direction: column; gap: 6px;">
@@ -181,17 +173,18 @@
                 <div id="info" class="info-box">プリセットを選ぶか、地図をクリックすると開始します。</div>
             </div>
 
-            <!-- 折りたたみ式 異常伝播解説セクション -->
-            <details class="explain-details">
-                <summary data-ja="📘 異常伝播（Es層反射）の計算原理" data-en="📘 Physics & Math of Es Propagation">📘 異常伝播（Es層反射）の計算原理</summary>
-                <div class="explain-content">
-                    <p data-ja="<b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。" data-en="<b>1. Law of Midpoint Reflection</b><br>Radio waves reflect at the precise midpoint between the transmitter and receiver. The yellow dot (📡) marks this critical geometric point."><b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。</p>
-                    <p data-ja="<b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。" data-en="<b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot."><b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot.</p>
-                    <p data-ja="<b>3. 1ホップ限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。" data-en="<b>3. 1-Hop Limit (~2,200km)</b><br>Due to the Earth's curvature, the maximum single-reflection distance is physically limited to around 2,200km. Beyond this, it hides behind the horizon."><b>3. 1-Hop限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。</p>
-                </div>
-            </details>
+            <!-- 📘 【修正箇所】生テキストを綺麗な日本語に統一しました -->
+            <div>
+                <details class="explain-details">
+                    <summary data-ja="📘 異常伝播（Es層反射）の計算原理" data-en="📘 Physics & Math of Es Propagation">📘 異常伝播（Es層反射）の計算原理</summary>
+                    <div class="explain-content">
+                        <p data-ja="<b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。" data-en="<b>1. Law of Midpoint Reflection</b><br>Radio waves reflect at the precise midpoint between the transmitter and receiver. The yellow dot (📡) marks this critical geometric point."><b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。</p>
+                        <p data-ja="<b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。" data-en="<b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot."><b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。</p>
+                        <p data-ja="<b>3. 1ホップ限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。" data-en="<b>3. 1-Hop Limit (~2,200km)</b><br>Due to the Earth's curvature, the maximum single-reflection distance is physically limited to around 2,200km. Beyond this, it hides behind the horizon."><b>3. 1-Hop限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。</p>
+                    </div>
+                </details>
+            </div>
 
-            <!-- 表示モード切り替え（レスポンシブ手動固定） -->
             <div>
                 <div class="section-title" data-ja="📱 表示レイアウト" data-en="📱 Layout Display Mode">📱 表示レイアウト</div>
                 <button id="btn-toggle-layout" class="mode-btn" onclick="toggleLayoutMode()" data-ja="🖥️ PC版レイアウトに表示を固定する" data-en="🖥️ Force PC Desktop Layout">🖥️ PC版レイアウトに表示を固定する</button>
@@ -317,7 +310,7 @@
     const normalLayerGroup = L.layerGroup().addTo(map);
     const esLayerGroup = L.layerGroup().addTo(map);
     const memoLayerGroup = L.layerGroup().addTo(map);
-    const measureLayerGroup = L.layerGroup().addTo(map); // 計測レイヤー
+    const measureLayerGroup = L.layerGroup().addTo(map);
 
     const overlayMaps = {
         "通常受信エリア / Line of Sight": normalLayerGroup,
@@ -333,7 +326,6 @@
     let esMarker = null;
     let savedMemos = JSON.parse(localStorage.getItem('osint_memos') || '[]');
 
-    // 計測システムステート
     let isMeasuring = false;
     let measurePoints = [];
     let measureMarkers = [];
@@ -355,7 +347,6 @@
             forcePCBtn.innerText = langDictionary[currentLang].layoutForcePC;
         }
 
-        // 計測ボタン言語リフレッシュ
         const mBtn = document.getElementById('btn-measure-mode');
         mBtn.innerText = isMeasuring ? langDictionary[currentLang].measureModeOn : langDictionary[currentLang].measureModeOff;
         document.getElementById('btn-clear-measure').innerText = langDictionary[currentLang].clearMeasure;
@@ -378,7 +369,6 @@
         setTimeout(() => { map.invalidateSize(); }, 200);
     }
 
-    /* 📏 距離計測ロジックコア */
     function toggleMeasureMode() {
         isMeasuring = !isMeasuring;
         const btn = document.getElementById('btn-measure-mode');
@@ -516,14 +506,12 @@
         normalLayerGroup.clearLayers(); esLayerGroup.clearLayers();
         if (!currentLatlng) { document.getElementById('info').innerHTML = L10n.noDataPrompt; return; }
 
-        // 受信アンテナマーカー
         if (!receiverMarker) {
             receiverMarker = L.marker(currentLatlng, { draggable: true }).addTo(map);
             receiverMarker.on('dragend', function(e) { currentLatlng = e.target.getLatLng(); updateSimulation(); });
         } else { receiverMarker.setLatLng(currentLatlng); }
         receiverMarker.bindPopup(L10n.rxMarker);
 
-        // ターゲットマーカー
         if (!targetMarker) {
             targetMarker = L.marker(targetLatlng, {
                 draggable: true,
@@ -537,7 +525,6 @@
         } else { targetMarker.setLatLng(targetLatlng); }
         document.getElementById('tx-lbl').innerText = L10n.txLabel;
 
-        // 電離層中心マーク
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             if (!esMarker) {
                 esMarker = L.marker(esCloudLocation, {
@@ -553,16 +540,13 @@
             document.getElementById('es-lbl').innerText = L10n.esLabel;
         } else { if (esMarker) { map.removeLayer(esMarker); esMarker = null; } }
 
-        // 通常視線円
         const baseDistanceKm = calculateDistance(rxAlt, txAlt);
         L.circle(currentLatlng, { color: 'var(--success-color)', fillColor: 'var(--success-color)', fillOpacity: 0.12, weight: 2, radius: baseDistanceKm * 1000 }).addTo(normalLayerGroup);
         L.polyline([currentLatlng, targetLatlng], { color: '#30a2ff', weight: 1.5, dashArray: '5, 5', opacity: 0.7 }).addTo(normalLayerGroup);
 
-        // 中間点プロット
         const midpoint = getMidpoint(currentLatlng, targetLatlng);
         L.circleMarker(midpoint, { radius: 5, color: '#ffd60a', fillColor: '#ffd60a', fillOpacity: 1 }).addTo(normalLayerGroup).bindTooltip(L10n.midpointTooltip, { permanent: false, direction: 'top' });
 
-        // 電離層楕円描画
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             const strengthRatio = Math.min(1, esMhz / 22);
             createEllipsePolygon(esCloudLocation, esRadiusX, esRadiusY, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.20 + (0.35 * strengthRatio), weight: 1 + (2 * strengthRatio) }).addTo(esLayerGroup);
@@ -660,7 +644,6 @@
     renderSavedMemos();
     L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "Search location..." }).on('markgeocode', function(e) { map.setView(e.geocode.center, 6); currentLatlng = e.geocode.center; updateSimulation(); }).addTo(map);
     
-    // クリックイベントのハンドリング（計測モード対応）
     map.on('click', function(e) { 
         if (isMeasuring) {
             handleMeasureClick(e);
@@ -669,6 +652,9 @@
             updateSimulation(); 
         }
     });
+
+    /* 🚀 【修正箇所】初回ロード時にJA言語環境を強制適用し、混在バグを完全にシャットアウトします */
+    switchLanguage('ja');
 </script>
 </body>
 </html>
