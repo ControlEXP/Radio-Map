@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VHF/UHF受信範囲シミュレーター (地球曲率＆範囲可変版)</title>
+    <title>VHF/UHF Propagation & Es Range Simulator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -14,6 +14,7 @@
             --success-color: #34c759;
             --warning-color: #ff9500;
             --danger-color: #ff3b30;
+            --measure-color: #ff2d55;
             --bg-color: #1c1c1e;
             --panel-bg: #2c2c2e;
             --text-color: #ffffff;
@@ -21,11 +22,30 @@
         }
         body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-color); color: var(--text-color); display: flex; flex-direction: column; height: 100vh; }
         header { background: var(--panel-bg); padding: 10px 20px; box-shadow: 0 1px 5px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; z-index: 1000; border-bottom: 1px solid #3a3a3c; }
-        header h1 { margin: 0; font-size: 15px; font-weight: 600; }
+        header h1 { margin: 0; font-size: 14px; font-weight: 600; }
         .target-band { background: #3a3a3c; border: 1px solid #48484a; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: var(--text-color); margin-left: 10px; }
-        .main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* クレジット & コントロールスタイル */
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .developer-credit { font-size: 11px; font-weight: bold; color: #30a2ff; background: rgba(48, 162, 255, 0.1); border: 1px solid rgba(48, 162, 255, 0.3); padding: 4px 10px; border-radius: 6px; letter-spacing: 0.5px; }
+        .lang-switch { display: flex; background: #1c1c1e; border: 1px solid #48484a; padding: 2px; border-radius: 6px; }
+        .lang-btn { background: transparent; border: none; color: var(--text-secondary); padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+        .lang-btn.active { background: var(--primary-color); color: white; }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; flex-direction: row; }
         #map { flex: 7; height: 100%; background: #000; }
         .sidebar { flex: 3; background: var(--panel-bg); box-shadow: -2px 0 10px rgba(0,0,0,0.3); padding: 20px; box-sizing: border-box; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; z-index: 999; border-left: 1px solid #3a3a3c; }
+        
+        /* スマホ対応（レスポンシブCSS） */
+        @media (max-width: 768px) {
+            body:not(.forced-pc) .main-container { flex-direction: column; }
+            body:not(.forced-pc) #map { flex: none; height: 45vh; }
+            body:not(.forced-pc) .sidebar { flex: none; height: 55vh; border-left: none; border-top: 1px solid #3a3a3c; }
+        }
+        body.forced-pc .main-container { flex-direction: row !important; }
+        body.forced-pc #map { flex: 7 !important; height: 100% !important; }
+        body.forced-pc .sidebar { flex: 3 !important; height: 100% !important; border-left: 1px solid #3a3a3c !important; border-top: none !important; }
+
         .section-title { font-size: 13px; font-weight: bold; color: var(--text-secondary); border-bottom: 1px solid #3a3a3c; padding-bottom: 5px; margin-bottom: 5px; }
         .control-group { background: #232325; padding: 10px; border-radius: 8px; border: 1px solid #3a3a3c; font-size: 13px; }
         .slider-box { margin-bottom: 12px; background: #2c2c2e; padding: 10px; border-radius: 6px; border: 1px solid #3a3a3c; }
@@ -43,8 +63,23 @@
         .preset-btn:hover { background: #3a3a3c; border-color: #8e8e93; }
         .preset-desc { font-size: 9px; color: var(--text-secondary); font-weight: normal; display: block; margin-top: 2px; }
         
-        .clear-memo-btn { background: #3a3a3c; color: #ff453a; border: 1px solid #545456; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; margin-top: 5px; transition: background 0.2s; }
-        .clear-memo-btn:hover { background: #48484a; }
+        /* 折りたたみ解説UI */
+        .explain-details { background: #232325; border: 1px solid #3a3a3c; border-radius: 8px; overflow: hidden; }
+        .explain-details summary { padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; color: #30a2ff; user-select: none; background: #1c1c1e; }
+        .explain-details summary:hover { background: #232325; }
+        .explain-content { padding: 12px; font-size: 11px; line-height: 1.5; color: var(--text-secondary); border-top: 1px solid #3a3a3c; }
+        .explain-content b { color: var(--text-color); }
+
+        .mode-btn { background: #3a3a3c; color: white; border: 1px solid #545456; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; transition: background 0.2s; }
+        .mode-btn:hover { background: #48484a; }
+        
+        /* 距離計測用スタイル */
+        .measure-btn-active { background: var(--measure-color) !important; border-color: var(--measure-color) !important; }
+        .measure-tooltip { background: var(--measure-color) !important; color: white !important; border: none !important; font-weight: bold !important; font-size: 11px !important; box-shadow: 0 2px 5px rgba(0,0,0,0.4); padding: 2px 6px !important; border-radius: 4px; }
+        .measure-tooltip::before { border-right-color: var(--measure-color) !important; }
+
+        .clear-memo-btn { background: transparent; color: #ff453a; border: 1px solid #ff3b30; width: 100%; padding: 6px; border-radius: 6px; font-weight: bold; font-size: 11px; cursor: pointer; margin-top: 5px; transition: all 0.2s; }
+        .clear-memo-btn:hover { background: #ff3b30; color: white; }
 
         .leaflet-popup-content-wrapper, .leaflet-control-layers { background: #2c2c2e !important; color: white !important; border: 1px solid #48484a !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; }
         .leaflet-popup-tip { background: #2c2c2e !important; }
@@ -56,11 +91,20 @@
 
     <header>
         <div style="display: flex; align-items: center;">
-            <h1>VHF/UHF受信範囲シミュレーター</h1>
-            <span class="target-band">地球曲率＆範囲可変版</span>
-            <span style="font-size: 11px; color: var(--text-secondary); margin-left: 15px; border-left: 1px solid #48484a; padding-left: 15px;">Developed by <b>YM</b></span>
+            <h1 data-ja="VHF/UHF受信範囲シミュレーター" data-en="VHF/UHF Propagation Simulator">VHF/UHF受信範囲シミュレーター</h1>
+            <span class="target-band" data-ja="地球曲率＆範囲可変版" data-en="Curvature & Variable Es">地球曲率＆範囲可変版</span>
         </div>
-        <a href="https://swc.nict.go.jp/" target="_blank" rel="noopener noreferrer" style="background: #1c1c1e; color: #30a2ff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; border: 1px solid #3a3a3c;">🌐 NICT 宇宙天気予報 ↗</a>
+        <div class="header-controls">
+            <!-- 🎖️ Control氏 開発者クレジット表示枠 -->
+            <div class="developer-credit" data-ja="システム設計: Control" data-en="System Architect: Control">システム設計: Control</div>
+            
+            <!-- 言語切り替えトグル -->
+            <div class="lang-switch">
+                <button id="btn-lang-ja" class="lang-btn active" onclick="switchLanguage('ja')">JA</button>
+                <button id="btn-lang-en" class="lang-btn" onclick="switchLanguage('en')">EN</button>
+            </div>
+            <a href="https://swc.nict.go.jp/" target="_blank" rel="noopener noreferrer" style="background: #1c1c1e; color: #30a2ff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; border: 1px solid #3a3a3c;">🌐 NICT ↗</a>
+        </div>
     </header>
 
     <div class="main-container">
@@ -68,100 +112,188 @@
         <div class="sidebar">
             
             <div>
-                <div class="section-title">📌 分析メモ機能</div>
+                <div class="section-title" data-ja="📌 分析メモ機能" data-en="📌 Analysis Memo">📌 分析メモ機能</div>
                 <div class="control-group" style="background: #1c1c1e;">
-                    <p style="margin: 0; color: #30a2ff; font-size: 11px; font-weight: bold; line-height: 1.4;">
+                    <p style="margin: 0; color: #30a2ff; font-size: 11px; font-weight: bold; line-height: 1.4;" data-ja="💡 地図上を【右クリック】すると分析メモピンを固定できます。" data-en="💡 [Right-Click] on the map to drop an Analysis Memo Pin.">
                         💡 地図上を【右クリック】すると分析メモピンを固定できます。
                     </p>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">① 警戒地域一発配置 (地政学リスク圏)</div>
+                <div class="section-title" data-ja="① 警戒地域一発配置" data-en="① Tactical Region Presets">① 警戒地域一発配置</div>
                 <div class="preset-grid">
-                    <button class="preset-btn" onclick="loadPreset('taiwan')">🌊 台湾海峡周辺<span class="preset-desc">夏 | 18MHz | 東西400×南北200</span></button>
-                    <button class="preset-btn" onclick="loadPreset('scsea')">🏝️ 南シナ海諸島<span class="preset-desc">春-夏 | 12MHz | 東西300×南北150</span></button>
-                    <button class="preset-btn" onclick="loadPreset('korea')">🦅 朝鮮半島・日本海<span class="preset-desc">夏 | 15MHz | 東西350×南北180</span></button>
-                    <button class="preset-btn" onclick="loadPreset('blacksea')">🌍 黒海周辺(欧州)<span class="preset-desc">春-夏 | 14MHz | 東西450×南北220</span></button>
-                    <button class="preset-btn" onclick="loadPreset('baltic')">🇪🇺 バルト海・北欧圏<span class="preset-desc">初夏 | 13MHz | 東西400×南北200</span></button>
-                    <button class="preset-btn" onclick="loadPreset('medit')">⚓ 東地中海<span class="preset-desc">春-夏 | 16MHz | 東西350×南北170</span></button>
+                    <button class="preset-btn" onclick="loadPreset('taiwan')"><span data-ja="🌊 台湾海峡周辺" data-en="🌊 Taiwan Strait">🌊 台湾海峡周辺</span><span class="preset-desc" data-ja="夏 | 18MHz | 東西400×南北200" data-en="Summer | 18MHz | X:400, Y:200km">夏 | 18MHz | 東西400×南北200</span></button>
+                    <button class="preset-btn" onclick="loadPreset('scsea')"><span data-ja="🏝️ 南シナ海諸島" data-en="🏝️ South China Sea">🏝️ 南シナ海諸島</span><span class="preset-desc" data-ja="春-夏 | 12MHz | 東西300×南北150" data-en="Spring | 12MHz | X:300, Y:150km">春-夏 | 12MHz | 東西300×南北150</span></button>
+                    <button class="preset-btn" onclick="loadPreset('korea')"><span data-ja="🦅 朝鮮半島・日本海" data-en="🦅 Korean Peninsula">🦅 朝鮮半島・日本海</span><span class="preset-desc" data-ja="夏 | 15MHz | 東西350×南北180" data-en="Summer | 15MHz | X:350, Y:180km">夏 | 15MHz | 東西350×南北180</span></button>
+                    <button class="preset-btn" onclick="loadPreset('blacksea')"><span data-ja="🌍 黒海周辺(欧州)" data-en="🌍 Black Sea Region">🌍 黒海周辺(欧州)</span><span class="preset-desc" data-ja="春-夏 | 14MHz | 東西450×南北220" data-en="Spring | 14MHz | X:450, Y:220km">春-夏 | 14MHz | 東西450×南北220</span></button>
+                    <button class="preset-btn" onclick="loadPreset('baltic')"><span data-ja="🇪🇺 バルト海・北欧" data-en="🇪🇺 Baltic Sea / Nordic">🇪🇺 バルト海・北欧</span><span class="preset-desc" data-ja="初夏 | 13MHz | 東西400×南北200" data-en="Solstice | 13MHz | X:400, Y:200km">初夏 | 13MHz | 東西400×南北200</span></button>
+                    <button class="preset-btn" onclick="loadPreset('medit')"><span data-ja="⚓ 東地中海" data-en="⚓ East Mediterranean">⚓ 東地中海</span><span class="preset-desc" data-ja="春-夏 | 16MHz | 東西350×南北170" data-en="Summer | 16MHz | X:350, Y:170km">春-夏 | 16MHz | 東西350×南北170</span></button>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">② 基本操作</div>
+                <div class="section-title" data-ja="② 基本操作" data-en="② Map Guide">② 基本操作</div>
                 <div class="control-group">
-                    <p style="margin: 0 0 5px 0; color: var(--success-color); font-size: 12px; font-weight: bold;">🔵 マーカーのドラッグ: 自分のアンテナ移動（クリックでも配置可）</p>
-                    <p style="margin: 0 0 5px 0; color: var(--danger-color); font-size: 12px; font-weight: bold;">🔴 マーカーのドラッグ: ターゲット(発信者)の移動</p>
-                    <p style="margin: 0; color: var(--warning-color); font-size: 12px; font-weight: bold;">☁️ マーカーのドラッグ: 電離層(Es層)の自由移動</p>
+                    <p style="margin: 0 0 5px 0; color: var(--success-color); font-size: 11px; font-weight: bold;" data-ja="🔵 ドラッグ: 自分のアンテナ移動（クリックでも可）" data-en="🔵 Drag: Move Your Antenna (or click map)">🔵 ドラッグ: 自分のアンテナ移動（クリックでも可）</p>
+                    <p style="margin: 0 0 5px 0; color: var(--danger-color); font-size: 11px; font-weight: bold;" data-ja="🔴 ドラッグ: ターゲット(発信源)の移動" data-en="🔴 Drag: Move Target Transmitter">🔴 ドラッグ: ターゲット(発信源)の移動</p>
+                    <p style="margin: 0; color: var(--warning-color); font-size: 11px; font-weight: bold;" data-ja="☁️ ドラッグ: 電離層(Es層)の中心移動" data-en="☁️ Drag: Move Ionosphere (Es) Center">☁️ ドラッグ: 電離層(Es層)の中心移動</p>
+                </div>
+            </div>
+
+            <!-- 📏 距離計測ツールセクション（新設） -->
+            <div>
+                <div class="section-title" data-ja="📏 距離計測ツール" data-en="📏 Distance Measure Tool">📏 距離計測ツール</div>
+                <div class="control-group" style="display: flex; flex-direction: column; gap: 6px;">
+                    <button id="btn-measure-mode" class="mode-btn" onclick="toggleMeasureMode()" data-ja="📏 距離計測ツールを開始" data-en="📏 Start Distance Measure">📏 距離計測ツールを開始</button>
+                    <button id="btn-clear-measure" class="mode-btn" style="background:#2c2c2e; border-color:#48484a;" onclick="clearMeasure()" data-ja="🗑️ 計測数値をクリア" data-en="🗑️ Clear Measure Points">🗑️ 計測数値をクリア</button>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">③ 高度・電離層の微調整（地球曲率＆楕円変形）</div>
+                <div class="section-title" data-ja="③ 高度・電離層の微調整" data-en="③ Parameters Control">③ 高度・電離層の微調整</div>
                 <div class="control-group">
                     <div class="slider-box">
-                        <div class="slider-header">
-                            <span>自アンテナ高度:</span>
-                            <div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="100"> m</div>
-                        </div>
+                        <div class="slider-header"><span data-ja="自アンテナ高度:" data-en="Your Antenna Alt:">自アンテナ高度:</span><div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="100"> m</div></div>
                         <input type="range" class="range-slider" id="alt-rx" min="0" max="100" step="0.1" value="5.8">
                     </div>
-                    
                     <div class="slider-box">
-                        <div class="slider-header">
-                            <span>ターゲット高度:</span>
-                            <div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="10000"> m</div>
-                        </div>
+                        <div class="slider-header"><span data-ja="ターゲット高度:" data-en="Target Alt:">ターゲット高度:</span><div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="10000"> m</div></div>
                         <input type="range" class="range-slider" id="alt-tx" min="0" max="100" step="0.1" value="57.7">
                     </div>
-
                     <div class="slider-box">
-                        <div class="slider-header">
-                            <span>電離層(Es層)強度:</span>
-                            <div><input type="number" id="num-es" class="num-input" min="0" max="25" value="6" style="color:var(--warning-color);"> MHz</div>
-                        </div>
+                        <div class="slider-header"><span data-ja="電離層(Es層)強度:" data-en="Es Intensity:">電離層(Es層)強度:</span><div><input type="number" id="num-es" class="num-input" min="0" max="25" value="6" style="color:var(--warning-color);"> MHz</div></div>
                         <input type="range" class="range-slider" id="es-intensity" min="0" max="25" step="1" value="6">
                     </div>
-
                     <div class="slider-box">
-                        <div class="slider-header">
-                            <span>電離層(Es層)東西幅(半径):</span>
-                            <div><input type="number" id="num-es-radius-x" class="num-input" min="50" max="1000" value="300" style="color:var(--warning-color);"> km</div>
-                        </div>
+                        <div class="slider-header"><span data-ja="電離層 東西幅(半径):" data-en="Es E-W Radius:">電離層 東西幅(半径):</span><div><input type="number" id="num-es-radius-x" class="num-input" min="50" max="1000" value="300" style="color:var(--warning-color);"> km</div></div>
                         <input type="range" class="range-slider" id="es-radius-x" min="50" max="1000" step="10" value="300">
                     </div>
-
                     <div class="slider-box">
-                        <div class="slider-header">
-                            <span>電離層(Es層)南北幅(半径):</span>
-                            <div><input type="number" id="num-es-radius-y" class="num-input" min="50" max="1000" value="150" style="color:var(--warning-color);"> km</div>
-                        </div>
+                        <div class="slider-header"><span data-ja="電離層 南北幅(半径):" data-en="Es N-S Radius:">電離層 南北幅(半径):</span><div><input type="number" id="num-es-radius-y" class="num-input" min="50" max="1000" value="150" style="color:var(--warning-color);"> km</div></div>
                         <input type="range" class="range-slider" id="es-radius-y" min="50" max="1000" step="10" value="150">
                     </div>
                 </div>
             </div>
 
             <div>
-                <div class="section-title">④ VHF/UHF 分析ステータス</div>
+                <div class="section-title" data-ja="④ VHF/UHF 分析ステータス" data-en="④ Intercept Analysis Status">④ VHF/UHF 分析ステータス</div>
                 <div id="info" class="info-box">プリセットを選ぶか、地図をクリックすると開始します。</div>
             </div>
 
-            <div style="margin-top:auto; padding-top:15px;">
-                <div class="section-title">⚙️ データ管理</div>
-                <button class="clear-memo-btn" onclick="secureClearAllMemos()">🗑️ すべてのメモピンを削除</button>
+            <!-- 折りたたみ式 異常伝播解説セクション -->
+            <details class="explain-details">
+                <summary data-ja="📘 異常伝播（Es層反射）の計算原理" data-en="📘 Physics & Math of Es Propagation">📘 異常伝播（Es層反射）の計算原理</summary>
+                <div class="explain-content">
+                    <p data-ja="<b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。" data-en="<b>1. Law of Midpoint Reflection</b><br>Radio waves reflect at the precise midpoint between the transmitter and receiver. The yellow dot (📡) marks this critical geometric point."><b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。</p>
+                    <p data-ja="<b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。" data-en="<b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot."><b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot.</p>
+                    <p data-ja="<b>3. 1ホップ限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。" data-en="<b>3. 1-Hop Limit (~2,200km)</b><br>Due to the Earth's curvature, the maximum single-reflection distance is physically limited to around 2,200km. Beyond this, it hides behind the horizon."><b>3. 1-Hop限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。</p>
+                </div>
+            </details>
+
+            <!-- 表示モード切り替え（レスポンシブ手動固定） -->
+            <div>
+                <div class="section-title" data-ja="📱 表示レイアウト" data-en="📱 Layout Display Mode">📱 表示レイアウト</div>
+                <button id="btn-toggle-layout" class="mode-btn" onclick="toggleLayoutMode()" data-ja="🖥️ PC版レイアウトに表示を固定する" data-en="🖥️ Force PC Desktop Layout">🖥️ PC版レイアウトに表示を固定する</button>
+            </div>
+
+            <div style="margin-top:auto; padding-top:10px;">
+                <div class="section-title" data-ja="⚙️ データ管理" data-en="⚙️ System Management">⚙️ データ管理</div>
+                <button class="clear-memo-btn" onclick="secureClearAllMemos()" data-ja="🗑️ すべてのメモピンを削除" data-en="🗑️ Clear All Memo Pins">🗑️ すべてのメモピンを削除</button>
             </div>
         </div>
     </div>
 
 <script>
+    let currentLang = 'ja';
+    const langDictionary = {
+        ja: {
+            rxMarker: "<b>自分の観測アンテナ (ドラッグ可)</b>",
+            txLabel: "🎯 ターゲット (ドラッグ可)",
+            esLabel: "Es層中心 (ドラッグ可)",
+            midpointTooltip: "📡 電波反射ポイント(送受信の中間点)",
+            maxLimit: "最大限界",
+            esIntensity: "強度",
+            esRange: "範囲",
+            ew: "東西",
+            ns: "南北",
+            baseArea: "基準地域",
+            interceptTitle: "🎯 ターゲット傍受リアルタイム判定:",
+            distanceStr: "・直線距離:",
+            losStr: "・通常見通し（直接波）:",
+            esStr: "・VHF電離層反射（異常波）:",
+            losIn: "🟢 視界内 (直接受信中)",
+            losOut: "❌ 圏外 / 地平線の影",
+            skpZone: "圏外（スキップゾーン）",
+            skpReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 距離が近すぎるため、電波の入射角が垂直に近く、電離層を突き抜けて宇宙へ逃げ動いています。</span>",
+            limitOver: "圏外（伝搬限界超過）",
+            limitReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 1ホップ(1回反射)の物理的限界距離(2,200km)を超えているため、地球曲率の陰に隠れます。</span>",
+            statusStrong: "強力（高確率で受信中）",
+            statusMedium: "中程度（受信可能）",
+            statusWeak: "微弱（リーク検知）",
+            statusOut: "圏外",
+            statusOutReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 送受信の中間地点（真上の反射ポイント）に電離層が存在しません。</span>",
+            noDataPrompt: "プリセットを選ぶか、地図をクリックすると開始します。",
+            layoutForcePC: "🖥️ PC版レイアウトに表示を固定する",
+            layoutResetMobile: "📱 スマホ版レイアウトに戻す",
+            memoPopupTitle: "分析メモ",
+            memoDeleteBtn: "🗑️ このピンを削除",
+            promptMemoTitle: "📌 分析メモピンのタイトル：",
+            promptMemoDesc: "メモ内容：",
+            promptResetWord: "すべてのメモピンを消去するには RESET と入力してください。",
+            alertCleared: "消去しました。",
+            measureModeOn: "📏 計測モード: ON (地図をクリック)",
+            measureModeOff: "📏 距離計測ツールを開始",
+            clearMeasure: "🗑️ 計測数値をクリア"
+        },
+        en: {
+            rxMarker: "<b>Your Antenna (Draggable)</b>",
+            txLabel: "🎯 Target (Draggable)",
+            esLabel: "Es Center (Draggable)",
+            midpointTooltip: "📡 Wave Reflection Point (Midpoint)",
+            maxLimit: "Max Horizon",
+            esIntensity: "Intensity",
+            esRange: "Range",
+            ew: "E-W",
+            ns: "N-S",
+            baseArea: "Base Area",
+            interceptTitle: "🎯 Target Intercept Real-time Status:",
+            distanceStr: "・Straight Distance:",
+            losStr: "・Line-of-Sight (Direct):",
+            esStr: "・VHF Ionospheric Refl. (Anomaly):",
+            losIn: "🟢 In Sight (Direct Wave)",
+            losOut: "❌ Out of Range / Horizon Shadow",
+            skpZone: "Out of Range (Skip Zone)",
+            skpReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ Too close. The wave hits the ionosphere too vertically and escapes into space.</span>",
+            limitOver: "Out of Range (Max Propagation Exceeded)",
+            limitReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ Exceeds the 1-hop physical limit (2,200km). Blocked by Earth curvature.</span>",
+            statusStrong: "Strong (High Probability)",
+            statusMedium: "Moderate (Receivable)",
+            statusWeak: "Weak (Signal Leakage)",
+            statusOut: "Out of Range",
+            statusOutReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ No ionosphere exists at the midpoint of transmission.</span>",
+            noDataPrompt: "Select a preset or click on the map to start.",
+            layoutForcePC: "🖥️ Force PC Desktop Layout",
+            layoutResetMobile: "📱 Reset to Mobile Responsive",
+            memoPopupTitle: "Analysis Memo",
+            memoDeleteBtn: "🗑️ Delete this pin",
+            promptMemoTitle: "📌 Enter Memo Title:",
+            promptMemoDesc: "Enter Memo Description:",
+            promptResetWord: "Type RESET to clear all custom memo pins.",
+            alertCleared: "Cleared successfully.",
+            measureModeOn: "📏 Measure Mode: ON (Click Map)",
+            measureModeOff: "📏 Start Distance Measure",
+            clearMeasure: "🗑️ Clear Measure Points"
+        }
+    };
+
     const geoPresets = {
-        taiwan:   { name: "台湾海峡周辺",     lat: 24.0, lng: 122.5, es: 18, radiusX: 400, radiusY: 200 },
-        scsea:    { name: "南シナ海諸島周辺", lat: 10.0, lng: 114.0, es: 12, radiusX: 300, radiusY: 150 },
-        korea:    { name: "朝鮮半島・日本海", lat: 38.5, lng: 132.0, es: 15, radiusX: 350, radiusY: 180 },
-        blacksea: { name: "黒海周辺（欧州）", lat: 43.5, lng: 34.5,  es: 14, radiusX: 450, radiusY: 220 },
-        baltic:   { name: "バルト海・北欧圏", lat: 57.0, lng: 19.0,  es: 13, radiusX: 400, radiusY: 200 },
-        medit:    { name: "東地中海",         lat: 34.0, lng: 34.5,  es: 16, radiusX: 350, radiusY: 170 }
+        taiwan:   { nameJa: "台湾海峡周辺", nameEn: "Taiwan Strait", lat: 24.0, lng: 122.5, es: 18, radiusX: 400, radiusY: 200 },
+        scsea:    { nameJa: "南シナ海諸島周辺", nameEn: "South China Sea", lat: 10.0, lng: 114.0, es: 12, radiusX: 300, radiusY: 150 },
+        korea:    { nameJa: "朝鮮半島・日本海", nameEn: "Korean Peninsula", lat: 38.5, lng: 132.0, es: 15, radiusX: 350, radiusY: 180 },
+        blacksea: { nameJa: "黒海周辺（欧州）", nameEn: "Black Sea Region", lat: 43.5, lng: 34.5,  es: 14, radiusX: 450, radiusY: 220 },
+        baltic:   { nameJa: "バルト海・北欧圏", nameEn: "Baltic / Nordic", lat: 57.0, lng: 19.0,  es: 13, radiusX: 400, radiusY: 200 },
+        medit:    { nameJa: "東地中海", nameEn: "East Mediterranean", lat: 34.0, lng: 34.5,  es: 16, radiusX: 350, radiusY: 170 }
     };
 
     const baseMaps = {
@@ -170,15 +302,10 @@
             L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { attribution: 'Labels &copy; Esri' })
         ]),
         "⛰️ 地形図・等高線 (OpenTopoMap)": L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            maxZoom: 17,
-            attribution: 'Map data: &copy; OpenStreetMap, SRTM | Map style: &copy; OpenTopoMap'
+            maxZoom: 17, attribution: 'Map data &copy; OpenStreetMap'
         }),
-        "🛰️ 純・衛星画像 (Esri)": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
-        }),
-        "🌐 標準地図 (OpenStreetMap)": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        })
+        "🛰️ 純・衛星画像 (Esri)": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri' }),
+        "🌐 標準地図 (OpenStreetMap)": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: 'OSM contributors' })
     };
 
     const map = L.map('map', {
@@ -190,29 +317,135 @@
     const normalLayerGroup = L.layerGroup().addTo(map);
     const esLayerGroup = L.layerGroup().addTo(map);
     const memoLayerGroup = L.layerGroup().addTo(map);
+    const measureLayerGroup = L.layerGroup().addTo(map); // 計測レイヤー
 
     const overlayMaps = {
-        "通常受信エリア（物理円＆視線パス）": normalLayerGroup,
-        "VHF電離層反射エリア（オレンジ楕円）": esLayerGroup,
-        "カスタム分析メモ（青ピン）": memoLayerGroup
+        "通常受信エリア / Line of Sight": normalLayerGroup,
+        "VHF電離層反射エリア / Es Ellipse": esLayerGroup,
+        "カスタム分析メモ / Custom Memos": memoLayerGroup,
+        "距離計測ツール / Distance Measure": measureLayerGroup
     };
 
-    L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+    L.control.layers(baseMaps, overlayMaps, { collapsed: true }).addTo(map);
 
     let receiverMarker = null, currentLatlng = null, esCloudLocation = null, activePreset = null;
     let targetMarker = null, targetLatlng = L.latLng(23.5, 122.0); 
     let esMarker = null;
     let savedMemos = JSON.parse(localStorage.getItem('osint_memos') || '[]');
 
+    // 計測システムステート
+    let isMeasuring = false;
+    let measurePoints = [];
+    let measureMarkers = [];
+    let measurePolyline = null;
+
+    function switchLanguage(lang) {
+        currentLang = lang;
+        document.getElementById('btn-lang-ja').classList.toggle('active', lang === 'ja');
+        document.getElementById('btn-lang-en').classList.toggle('active', lang === 'en');
+        
+        document.querySelectorAll('[data-ja]').forEach(el => {
+            el.innerHTML = el.getAttribute('data-' + lang);
+        });
+
+        const forcePCBtn = document.getElementById('btn-toggle-layout');
+        if(document.body.classList.contains('forced-pc')) {
+            forcePCBtn.innerText = langDictionary[currentLang].layoutResetMobile;
+        } else {
+            forcePCBtn.innerText = langDictionary[currentLang].layoutForcePC;
+        }
+
+        // 計測ボタン言語リフレッシュ
+        const mBtn = document.getElementById('btn-measure-mode');
+        mBtn.innerText = isMeasuring ? langDictionary[currentLang].measureModeOn : langDictionary[currentLang].measureModeOff;
+        document.getElementById('btn-clear-measure').innerText = langDictionary[currentLang].clearMeasure;
+
+        updateSimulation();
+        renderSavedMemos();
+        if(measurePoints.length > 0) refreshMeasureTooltips();
+    }
+
+    function toggleLayoutMode() {
+        const body = document.body;
+        const btn = document.getElementById('btn-toggle-layout');
+        body.classList.toggle('forced-pc');
+        
+        if(body.classList.contains('forced-pc')) {
+            btn.innerText = langDictionary[currentLang].layoutResetMobile;
+        } else {
+            btn.innerText = langDictionary[currentLang].layoutForcePC;
+        }
+        setTimeout(() => { map.invalidateSize(); }, 200);
+    }
+
+    /* 📏 距離計測ロジックコア */
+    function toggleMeasureMode() {
+        isMeasuring = !isMeasuring;
+        const btn = document.getElementById('btn-measure-mode');
+        if (isMeasuring) {
+            btn.innerText = langDictionary[currentLang].measureModeOn;
+            btn.classList.add('measure-btn-active');
+        } else {
+            btn.innerText = langDictionary[currentLang].measureModeOff;
+            btn.classList.remove('measure-btn-active');
+        }
+    }
+
+    function handleMeasureClick(e) {
+        const latlng = e.latlng;
+        measurePoints.push(latlng);
+
+        const marker = L.circleMarker(latlng, {
+            radius: 5,
+            color: 'var(--measure-color)',
+            fillColor: '#ffffff',
+            fillOpacity: 1,
+            weight: 2
+        }).addTo(measureLayerGroup);
+        measureMarkers.push(marker);
+
+        if (measurePoints.length > 1) {
+            if (!measurePolyline) {
+                measurePolyline = L.polyline(measurePoints, { color: 'var(--measure-color)', weight: 3, dashArray: '5, 5' }).addTo(measureLayerGroup);
+            } else {
+                measurePolyline.setLatLngs(measurePoints);
+            }
+        }
+        refreshMeasureTooltips();
+    }
+
+    function refreshMeasureTooltips() {
+        let accumulatedDist = 0;
+        measurePoints.forEach((pt, idx) => {
+            if (idx > 0) {
+                accumulatedDist += measurePoints[idx - 1].distanceTo(pt) / 1000;
+            }
+            const marker = measureMarkers[idx];
+            if (marker) {
+                marker.unbindTooltip();
+                marker.bindTooltip(`${accumulatedDist.toFixed(1)} km`, {
+                    permanent: true,
+                    direction: 'right',
+                    className: 'measure-tooltip'
+                }).openTooltip();
+            }
+        });
+    }
+
+    function clearMeasure() {
+        measureLayerGroup.clearLayers();
+        measurePoints = [];
+        measureMarkers = [];
+        measurePolyline = null;
+    }
+
     function calculateDistance(rxAlt, txAlt) {
         return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
     }
 
     function getMidpoint(latlng1, latlng2) {
-        const lat1 = latlng1.lat * Math.PI / 180;
-        const lng1 = latlng1.lng * Math.PI / 180;
-        const lat2 = latlng2.lat * Math.PI / 180;
-        const lng2 = latlng2.lng * Math.PI / 180;
+        const lat1 = latlng1.lat * Math.PI / 180; const lng1 = latlng1.lng * Math.PI / 180;
+        const lat2 = latlng2.lat * Math.PI / 180; const lng2 = latlng2.lng * Math.PI / 180;
         const dLng = lng2 - lng1;
         const Bx = Math.cos(lat2) * Math.cos(dLng);
         const By = Math.cos(lat2) * Math.sin(dLng);
@@ -222,201 +455,116 @@
     }
 
     function createEllipsePolygon(center, radiusX_km, radiusY_km, options) {
-        const points = [];
-        const lat = center.lat;
-        const lng = center.lng;
-        const latKm = 111;
-        const lngKm = 111 * Math.cos(lat * Math.PI / 180);
-        
+        const points = []; const lat = center.lat; const lng = center.lng;
+        const latKm = 111; const lngKm = 111 * Math.cos(lat * Math.PI / 180);
         for (let i = 0; i < 64; i++) {
             const angle = (i / 64) * 2 * Math.PI;
-            const dx = radiusX_km * Math.cos(angle);
-            const dy = radiusY_km * Math.sin(angle);
-            const dLat = dy / latKm;
-            const dLng = dx / lngKm;
-            points.push([lat + dLat, lng + dLng]);
+            const dx = radiusX_km * Math.cos(angle); const dy = radiusY_km * Math.sin(angle);
+            points.push([lat + (dy / latKm), lng + (dx / lngKm)]);
         }
         return L.polygon(points, options);
     }
 
     function isPointInEllipse(center, point, radiusX_km, radiusY_km) {
-        const latKm = 111;
-        const lngKm = 111 * Math.cos(center.lat * Math.PI / 180);
-        const dy = (point.lat - center.lat) * latKm;
-        const dx = (point.lng - center.lng) * lngKm;
-        const value = (dx * dx) / (radiusX_km * radiusX_km) + (dy * dy) / (radiusY_km * radiusY_km);
-        return value <= 1;
+        const latKm = 111; const lngKm = 111 * Math.cos(center.lat * Math.PI / 180);
+        const dy = (point.lat - center.lat) * latKm; const dx = (point.lng - center.lng) * lngKm;
+        return ((dx * dx) / (radiusX_km * radiusX_km) + (dy * dy) / (radiusY_km * radiusY_km)) <= 1;
     }
 
     function setupLogarithmicSlider(sliderId, numId, defaultValue) {
-        const slider = document.getElementById(sliderId);
-        const numInput = document.getElementById(numId);
-        slider.value = Math.sqrt(defaultValue / 30000) * 100;
-        numInput.value = defaultValue;
-
-        slider.addEventListener('input', function() {
-            const pct = parseFloat(this.value);
-            numInput.value = Math.round(Math.pow(pct / 100, 2) * 30000);
-            updateSimulation();
-        });
+        const slider = document.getElementById(sliderId); const numInput = document.getElementById(numId);
+        slider.value = Math.sqrt(defaultValue / 30000) * 100; numInput.value = defaultValue;
+        slider.addEventListener('input', function() { numInput.value = Math.round(Math.pow(parseFloat(this.value) / 100, 2) * 30000); updateSimulation(); });
         numInput.addEventListener('input', function() {
-            let alt = parseFloat(this.value) || 0;
-            if (alt > 30000) alt = 30000; if (alt < 0) alt = 0; this.value = alt;
-            slider.value = Math.sqrt(alt / 30000) * 100;
-            updateSimulation();
+            let alt = parseFloat(this.value) || 0; if (alt > 30000) alt = 30000; if (alt < 0) alt = 0; this.value = alt;
+            slider.value = Math.sqrt(alt / 30000) * 100; updateSimulation();
         });
     }
 
-    const esSlider = document.getElementById('es-intensity');
-    const esNum = document.getElementById('num-es');
+    const esSlider = document.getElementById('es-intensity'); const esNum = document.getElementById('num-es');
     esSlider.addEventListener('input', function() { esNum.value = this.value; updateSimulation(); });
-    esNum.addEventListener('input', function() {
-        let val = parseInt(this.value) || 0;
-        if (val > 25) val = 25; if (val < 0) val = 0; this.value = val;
-        esSlider.value = val; updateSimulation();
-    });
+    esNum.addEventListener('input', function() { let val = parseInt(this.value) || 0; if (val > 25) val = 25; this.value = val; esSlider.value = val; updateSimulation(); });
 
-    const esRadiusXSlider = document.getElementById('es-radius-x');
-    const esRadiusXNum = document.getElementById('num-es-radius-x');
+    const esRadiusXSlider = document.getElementById('es-radius-x'); const esRadiusXNum = document.getElementById('num-es-radius-x');
     esRadiusXSlider.addEventListener('input', function() { esRadiusXNum.value = this.value; updateSimulation(); });
-    esRadiusXNum.addEventListener('input', function() {
-        let val = parseInt(this.value) || 50;
-        if (val > 1000) val = 1000; if (val < 50) val = 50; this.value = val;
-        esRadiusXSlider.value = val; updateSimulation();
-    });
+    esRadiusXNum.addEventListener('input', function() { let val = parseInt(this.value) || 50; if (val > 1000) val = 1000; this.value = val; esRadiusXSlider.value = val; updateSimulation(); });
 
-    const esRadiusYSlider = document.getElementById('es-radius-y');
-    const esRadiusYNum = document.getElementById('num-es-radius-y');
+    const esRadiusYSlider = document.getElementById('es-radius-y'); const esRadiusYNum = document.getElementById('num-es-radius-y');
     esRadiusYSlider.addEventListener('input', function() { esRadiusYNum.value = this.value; updateSimulation(); });
-    esRadiusYNum.addEventListener('input', function() {
-        let val = parseInt(this.value) || 50;
-        if (val > 1000) val = 1000; if (val < 50) val = 50; this.value = val;
-        esRadiusYSlider.value = val; updateSimulation();
-    });
+    esRadiusYNum.addEventListener('input', function() { let val = parseInt(this.value) || 50; if (val > 1000) val = 1000; this.value = val; esRadiusYSlider.value = val; updateSimulation(); });
 
-    setupLogarithmicSlider('alt-rx', 'num-alt-rx', 100);
-    setupLogarithmicSlider('alt-tx', 'num-alt-tx', 10000);
+    setupLogarithmicSlider('alt-rx', 'num-alt-rx', 100); setupLogarithmicSlider('alt-tx', 'num-alt-tx', 10000);
 
     function loadPreset(key) {
-        const p = geoPresets[key];
-        activePreset = p;
-        esCloudLocation = L.latLng(p.lat, p.lng);
-        targetLatlng = L.latLng(p.lat - 0.3, p.lng + 0.3);
-        
-        document.getElementById('es-intensity').value = p.es;
-        document.getElementById('num-es').value = p.es;
-        
-        document.getElementById('es-radius-x').value = p.radiusX;
-        document.getElementById('num-es-radius-x').value = p.radiusX;
-
-        document.getElementById('es-radius-y').value = p.radiusY;
-        document.getElementById('num-es-radius-y').value = p.radiusY;
-
+        const p = geoPresets[key]; activePreset = p; esCloudLocation = L.latLng(p.lat, p.lng); targetLatlng = L.latLng(p.lat - 0.3, p.lng + 0.3);
+        document.getElementById('es-intensity').value = p.es; document.getElementById('num-es').value = p.es;
+        document.getElementById('es-radius-x').value = p.radiusX; document.getElementById('num-es-radius-x').value = p.radiusX;
+        document.getElementById('es-radius-y').value = p.radiusY; document.getElementById('num-es-radius-y').value = p.radiusY;
         map.setView([p.lat, p.lng], 5);
-        if (!currentLatlng) {
-            currentLatlng = L.latLng(p.lat - 2, p.lng + 2);
-        }
+        if (!currentLatlng) currentLatlng = L.latLng(p.lat - 2, p.lng + 2);
         updateSimulation();
     }
 
     function updateSimulation() {
+        const L10n = langDictionary[currentLang];
         const rxAlt = parseFloat(document.getElementById('num-alt-rx').value) || 0;
         const txAlt = parseFloat(document.getElementById('num-alt-tx').value) || 0;
         const esMhz = parseInt(document.getElementById('num-es').value) || 0;
         const esRadiusX = parseInt(document.getElementById('num-es-radius-x').value) || 0;
         const esRadiusY = parseInt(document.getElementById('num-es-radius-y').value) || 0;
 
-        normalLayerGroup.clearLayers();
-        esLayerGroup.clearLayers();
+        normalLayerGroup.clearLayers(); esLayerGroup.clearLayers();
+        if (!currentLatlng) { document.getElementById('info').innerHTML = L10n.noDataPrompt; return; }
 
-        if (!currentLatlng) return;
-
-        // 🔗 自分のアンテナマーカーの設定（ドラッグ可能にアップデート！）
+        // 受信アンテナマーカー
         if (!receiverMarker) {
-            receiverMarker = L.marker(currentLatlng, {
-                draggable: true
-            }).addTo(map).bindPopup("<b>自分の観測アンテナ (ドラッグ可)</b>");
-            receiverMarker.on('dragend', function(e) {
-                currentLatlng = e.target.getLatLng();
-                updateSimulation();
-            });
-            receiverMarker.openPopup();
-        } else {
-            receiverMarker.setLatLng(currentLatlng);
-        }
+            receiverMarker = L.marker(currentLatlng, { draggable: true }).addTo(map);
+            receiverMarker.on('dragend', function(e) { currentLatlng = e.target.getLatLng(); updateSimulation(); });
+        } else { receiverMarker.setLatLng(currentLatlng); }
+        receiverMarker.bindPopup(L10n.rxMarker);
 
-        // ターゲットマーカーの設定
+        // ターゲットマーカー
         if (!targetMarker) {
             targetMarker = L.marker(targetLatlng, {
                 draggable: true,
                 icon: L.divIcon({
                     className: '', 
-                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; cursor:move; text-align:center;">🔴</div><div style="background:rgba(0,0,0,0.85); border:1px solid #ff3b30; padding:2px 5px; font-size:10px; border-radius:4px; white-space:nowrap; font-weight:bold; color:#ff3b30; margin-top:-4px; box-shadow:0 2px 5px rgba(0,0,0,0.5);">🎯 ターゲット (ドラッグ可)</div>`, 
+                    html: `<div style="font-size:24px; text-shadow: 0 0 3px #000; cursor:move; text-align:center;">🔴</div><div id="tx-lbl" style="background:rgba(0,0,0,0.85); border:1px solid #ff3b30; padding:2px 5px; font-size:10px; border-radius:4px; white-space:nowrap; font-weight:bold; color:#ff3b30; margin-top:-4px; box-shadow:0 2px 5px rgba(0,0,0,0.5);"></div>`, 
                     iconAnchor: [12, 12]
                 })
             }).addTo(map);
-            targetMarker.on('dragend', function(e) {
-                targetLatlng = e.target.getLatLng();
-                updateSimulation();
-            });
-        } else {
-            targetMarker.setLatLng(targetLatlng);
-        }
+            targetMarker.on('dragend', function(e) { targetLatlng = e.target.getLatLng(); updateSimulation(); });
+        } else { targetMarker.setLatLng(targetLatlng); }
+        document.getElementById('tx-lbl').innerText = L10n.txLabel;
 
-        // ドラッグ可能な電離層中心マーカーの設定
+        // 電離層中心マーク
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             if (!esMarker) {
                 esMarker = L.marker(esCloudLocation, {
                     draggable: true,
                     icon: L.divIcon({
                         className: '', 
-                        html: `<div style="font-size:20px; cursor:move; text-align:center;">☁️</div><div style="background:var(--warning-color); color:black; font-weight:bold; padding:1px 4px; font-size:9px; border-radius:3px; white-space:nowrap; margin-top:-2px; box-shadow:0 1px 3px rgba(0,0,0,0.4);">Es層中心 (ドラッグ可)</div>`,
+                        html: `<div style="font-size:20px; cursor:move; text-align:center;">☁️</div><div id="es-lbl" style="background:var(--warning-color); color:black; font-weight:bold; padding:1px 4px; font-size:9px; border-radius:3px; white-space:nowrap; margin-top:-2px; box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
                         iconAnchor: [10, 10]
                     })
                 }).addTo(map);
-                esMarker.on('dragend', function(e) {
-                    esCloudLocation = e.target.getLatLng();
-                    updateSimulation();
-                });
-            } else {
-                esMarker.setLatLng(esCloudLocation);
-            }
-        } else {
-            if (esMarker) { map.removeLayer(esMarker); esMarker = null; }
-        }
+                esMarker.on('dragend', function(e) { esCloudLocation = e.target.getLatLng(); updateSimulation(); });
+            } else { esMarker.setLatLng(esCloudLocation); }
+            document.getElementById('es-lbl').innerText = L10n.esLabel;
+        } else { if (esMarker) { map.removeLayer(esMarker); esMarker = null; } }
 
-        // 通常の見通し円
+        // 通常視線円
         const baseDistanceKm = calculateDistance(rxAlt, txAlt);
-        L.circle(currentLatlng, {
-            color: 'var(--success-color)',
-            fillColor: 'var(--success-color)',
-            fillOpacity: 0.15,
-            weight: 2,
-            radius: baseDistanceKm * 1000
-        }).addTo(normalLayerGroup);
+        L.circle(currentLatlng, { color: 'var(--success-color)', fillColor: 'var(--success-color)', fillOpacity: 0.12, weight: 2, radius: baseDistanceKm * 1000 }).addTo(normalLayerGroup);
+        L.polyline([currentLatlng, targetLatlng], { color: '#30a2ff', weight: 1.5, dashArray: '5, 5', opacity: 0.7 }).addTo(normalLayerGroup);
 
-        // 自アンテナとターゲットを結ぶ視線波パス（点線）
-        L.polyline([currentLatlng, targetLatlng], {
-            color: '#30a2ff',
-            weight: 1.5,
-            dashArray: '5, 5',
-            opacity: 0.7
-        }).addTo(normalLayerGroup);
-
-        // 大圏コース上の中間点（電波の対空反射ポイント）をプロット
+        // 中間点プロット
         const midpoint = getMidpoint(currentLatlng, targetLatlng);
-        L.circleMarker(midpoint, {
-            radius: 5,
-            color: '#ffd60a',
-            fillColor: '#ffd60a',
-            fillOpacity: 1,
-            weight: 1
-        }).addTo(normalLayerGroup).bindTooltip("📡 電波反射ポイント(送受信の中間点)", { permanent: false, direction: 'top' });
+        L.circleMarker(midpoint, { radius: 5, color: '#ffd60a', fillColor: '#ffd60a', fillOpacity: 1 }).addTo(normalLayerGroup).bindTooltip(L10n.midpointTooltip, { permanent: false, direction: 'top' });
 
-        // 楕円形の電離層を描画
+        // 電離層楕円描画
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             const strengthRatio = Math.min(1, esMhz / 22);
-
             createEllipsePolygon(esCloudLocation, esRadiusX, esRadiusY, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.20 + (0.35 * strengthRatio), weight: 1 + (2 * strengthRatio) }).addTo(esLayerGroup);
             createEllipsePolygon(esCloudLocation, esRadiusX * 1.5, esRadiusY * 1.5, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.08 + (0.20 * strengthRatio), weight: 1 }).addTo(esLayerGroup);
             createEllipsePolygon(esCloudLocation, esRadiusX * 2.0, esRadiusY * 2.0, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.02 + (0.08 * strengthRatio), weight: 1 }).addTo(esLayerGroup);
@@ -425,67 +573,52 @@
         const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
         const inNormalRange = distToTargetKm <= baseDistanceKm;
         
-        let esStatus = "圏外";
-        let esStatusColor = "#8e8e93";
-        let esReason = "";
+        let esStatus = L10n.statusOut; let esStatusColor = "#8e8e93"; let esReason = "";
 
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             const inCore = isPointInEllipse(esCloudLocation, midpoint, esRadiusX, esRadiusY);
             const inMid = isPointInEllipse(esCloudLocation, midpoint, esRadiusX * 1.5, esRadiusY * 1.5);
             const inOuter = isPointInEllipse(esCloudLocation, midpoint, esRadiusX * 2.0, esRadiusY * 2.0);
+            const SKIP_ZONE_KM = 500; const MAX_PROP_KM = 2200;  
 
-            const SKIP_ZONE_KM = 500;  
-            const MAX_PROP_KM = 2200;  
-
-            if (distToTargetKm < SKIP_ZONE_KM) {
-                esStatus = "圏外（スキップゾーン）";
-                esStatusColor = "var(--warning-color)";
-                esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 距離が近すぎるため、電波の入射角が垂直に近く、電離層を突き抜けて宇宙へ逃げています。</span>";
-            } else if (distToTargetKm > MAX_PROP_KM) {
-                esStatus = "圏外（伝搬限界超過）";
-                esStatusColor = "var(--danger-color)";
-                esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 1ホップ(1回反射)の物理的限界距離(2,200km)を超えているため、地球曲率の陰に隠れます。</span>";
-            } else {
-                if (inCore) { esStatus = "強力（高確率で受信中）"; esStatusColor = "var(--danger-color)"; }
-                else if (inMid) { esStatus = "中程度（受信可能）"; esStatusColor = "var(--warning-color)"; }
-                else if (inOuter) { esStatus = "微弱（リーク検知）"; esStatusColor = "#ffd60a"; }
-                else {
-                    esStatus = "圏外";
-                    esReason = "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 送受信の中間地点（真上の反射ポイント）に電離層が存在しません。</span>";
-                }
+            if (distToTargetKm < SKIP_ZONE_KM) { esStatus = L10n.skpZone; esStatusColor = "var(--warning-color)"; esReason = L10n.skpReason; }
+            else if (distToTargetKm > MAX_PROP_KM) { esStatus = L10n.limitOver; esStatusColor = "var(--danger-color)"; esReason = L10n.limitReason; }
+            else {
+                if (inCore) { esStatus = L10n.statusStrong; esStatusColor = "var(--danger-color)"; }
+                else if (inMid) { esStatus = L10n.statusMedium; esStatusColor = "var(--warning-color)"; }
+                else if (inOuter) { esStatus = L10n.statusWeak; esStatusColor = "#ffd60a"; }
+                else { esStatus = L10n.statusOut; esReason = L10n.statusOutReason; }
             }
         }
 
         let infoHtml = `
-            <span class="badge bg-normal">通常見通しエリア</span>最大限界: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
-            <span class="badge bg-es">VHF電離層異常（Es層）</span>強度: <strong>${esMhz} MHz</strong> | 範囲: <strong>東西 ${esRadiusX}km × 南北 ${esRadiusY}km</strong><br>
+            <span class="badge bg-normal">${currentLang==='ja'?'通常見通しエリア':'Line of Sight Area'}</span> ${L10n.maxLimit}: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
+            <span class="badge bg-es">${currentLang==='ja'?'電離層反射エリア':'Ionospheric (Es)'}</span> ${L10n.esIntensity}: <strong>${esMhz} MHz</strong> | ${L10n.esRange}: <strong>${L10n.ew} ${esRadiusX}km × ${L10n.ns} ${esRadiusY}km</strong><br>
         `;
 
         if (esRadiusX > 0 && activePreset) {
-            infoHtml += `<span style="font-size:11px; color:var(--text-secondary);">基準地域: ${activePreset.name}</span><br>`;
+            const pName = currentLang === 'ja' ? activePreset.nameJa : activePreset.nameEn;
+            infoHtml += `<span style="font-size:11px; color:var(--text-secondary);">${L10n.baseArea}: ${pName}</span><br>`;
         }
 
         infoHtml += `
             <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #48484a;">
-                <b style="font-size:13px; color:#30a2ff;">🎯 ターゲット傍受リアルタイム判定:</b><br>
-                ・直線距離: <strong>${Math.round(distToTargetKm).toLocaleString()} km</strong><br>
-                ・通常見通し（直接波）: <span style="font-weight:bold; color:${inNormalRange ? 'var(--success-color)' : '#8e8e93'};">${inNormalRange ? '🟢 視界内 (直接受信中)' : '❌ 圏外 / 地平線の影'}</span><br>
-                ・VHF電離層反射（異常波）: <span style="font-weight:bold; color:${esStatusColor};">${esStatus.includes('圏外') || esStatus === '圏外' ? '❌ ' + esStatus : '⚡ ' + esStatus}</span>${esReason}
+                <b style="font-size:13px; color:#30a2ff;">${L10n.interceptTitle}</b><br>
+                ${L10n.distanceStr} <strong>${Math.round(distToTargetKm).toLocaleString()} km</strong><br>
+                ${L10n.losStr} <span style="font-weight:bold; color:${inNormalRange ? 'var(--success-color)' : '#8e8e93'};">${inNormalRange ? L10n.losIn : L10n.losOut}</span><br>
+                ${L10n.esStr} <span style="font-weight:bold; color:${esStatusColor};">${esStatus.includes('圏外') || esStatus.includes('Out of') ? '❌ ' + esStatus : '⚡ ' + esStatus}</span>${esReason}
             </div>
         `;
 
-        if (esStatus !== '圏外' && !esStatus.includes('圏外')) {
-            document.getElementById('info').style.borderLeftColor = "var(--warning-color)";
-        } else if (inNormalRange) {
-            document.getElementById('info').style.borderLeftColor = "var(--success-color)";
-        } else {
-            document.getElementById('info').style.borderLeftColor = "#48484a";
-        }
-
-        document.getElementById('info').innerHTML = infoHtml;
+        const infoBoxEl = document.getElementById('info');
+        if (esStatus !== L10n.statusOut && !esStatus.includes('圏外') && !esStatus.includes('Out of')) { infoBoxEl.style.borderLeftColor = "var(--warning-color)"; }
+        else if (inNormalRange) { infoBoxEl.style.borderLeftColor = "var(--success-color)"; }
+        else { infoBoxEl.style.borderLeftColor = "#48484a"; }
+        infoBoxEl.innerHTML = infoHtml;
     }
 
     function renderSavedMemos() {
+        const L10n = langDictionary[currentLang];
         memoLayerGroup.clearLayers();
         savedMemos.forEach((memo, index) => {
             const marker = L.marker([memo.lat, memo.lng], {
@@ -500,7 +633,7 @@
                 <div style="color:white; min-width:150px;">
                     <h3 style="margin:0 0 5px 0; font-size:14px; color:#30a2ff; border-bottom:1px solid #48484a; padding-bottom:3px;">${memo.title}</h3>
                     <p style="margin:0 0 8px 0; font-size:12px; white-space:pre-wrap; color:#f2f2f7;">${memo.desc}</p>
-                    <button onclick="deleteMemo(${index})" style="background:var(--danger-color); color:white; border:none; padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; width:100%;">🗑️ このピンを削除</button>
+                    <button onclick="deleteMemo(${index})" style="background:var(--danger-color); color:white; border:none; padding:3px 8px; border-radius:4px; font-size:10px; cursor:pointer; width:100%;">${L10n.memoDeleteBtn}</button>
                 </div>
             `;
             marker.bindPopup(popupContent);
@@ -508,43 +641,33 @@
     }
 
     map.on('contextmenu', function(e) {
-        const title = prompt("📌 分析メモピンのタイトル：");
-        if (!title) return;
-        const desc = prompt("メモ内容：") || "";
+        const L10n = langDictionary[currentLang];
+        const title = prompt(L10n.promptMemoTitle); if (!title) return;
+        const desc = prompt(L10n.promptMemoDesc) || "";
         savedMemos.push({ lat: e.latlng.lat, lng: e.latlng.lng, title: title, desc: desc });
         localStorage.setItem('osint_memos', JSON.stringify(savedMemos));
         renderSavedMemos();
     });
 
-    window.deleteMemo = function(index) {
-        map.closePopup();
-        savedMemos.splice(index, 1);
-        localStorage.setItem('osint_memos', JSON.stringify(savedMemos));
-        renderSavedMemos();
-    };
+    window.deleteMemo = function(index) { map.closePopup(); savedMemos.splice(index, 1); localStorage.setItem('osint_memos', JSON.stringify(savedMemos)); renderSavedMemos(); };
 
     window.secureClearAllMemos = function() {
-        const input = prompt("すべてのメモピンを消去するには RESET と入力してください。");
-        if (input === "RESET") {
-            savedMemos = [];
-            localStorage.removeItem('osint_memos');
-            renderSavedMemos();
-            alert("消去しました。");
-        }
+        const L10n = langDictionary[currentLang];
+        const input = prompt(L10n.promptResetWord);
+        if (input === "RESET") { savedMemos = []; localStorage.removeItem('osint_memos'); renderSavedMemos(); alert(L10n.alertCleared); }
     };
 
     renderSavedMemos();
-
-    L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "地名・都市名を検索..." })
-    .on('markgeocode', function(e) {
-        map.setView(e.geocode.center, 6);
-        currentLatlng = e.geocode.center;
-        updateSimulation();
-    }).addTo(map);
-
-    map.on('click', function(e) {
-        currentLatlng = e.latlng;
-        updateSimulation();
+    L.Control.geocoder({ defaultMarkGeocode: false, placeholder: "Search location..." }).on('markgeocode', function(e) { map.setView(e.geocode.center, 6); currentLatlng = e.geocode.center; updateSimulation(); }).addTo(map);
+    
+    // クリックイベントのハンドリング（計測モード対応）
+    map.on('click', function(e) { 
+        if (isMeasuring) {
+            handleMeasureClick(e);
+        } else {
+            currentLatlng = e.latlng; 
+            updateSimulation(); 
+        }
     });
 </script>
 </body>
