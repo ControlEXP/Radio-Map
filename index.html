@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VHF/UHF Propagation & Es Range Simulator</title>
+    <title>VHF/UHF Propagation Simulator</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
@@ -54,6 +54,8 @@
         .info-box { background: #232325; border-left: 4px solid #48484a; padding: 10px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #f2f2f7; }
         .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; margin-right: 5px; }
         .bg-normal { background: var(--success-color); }
+        .bg-target { background: #8e8e93; }
+        .bg-source { background: var(--danger-color); }
         .bg-es { background: var(--warning-color); }
         
         .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5px; }
@@ -80,7 +82,6 @@
         .leaflet-popup-content-wrapper, .leaflet-control-layers { background: #2c2c2e !important; color: white !important; border: 1px solid #48484a !important; box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important; }
         .leaflet-popup-tip { background: #2c2c2e !important; }
         .leaflet-popup-close-button { color: #aaa !important; }
-        .leaflet-control-layers-toggle { background-color: #2c2c2e !important; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -88,7 +89,7 @@
     <header>
         <div style="display: flex; align-items: center;">
             <h1 data-ja="VHF/UHF受信範囲シミュレーター" data-en="VHF/UHF Propagation Simulator">VHF/UHF受信範囲シミュレーター</h1>
-            <span class="target-band" data-ja="地球曲率＆範囲可変版" data-en="Curvature & Variable Es">地球曲率＆範囲可変版</span>
+            <span class="target-band" data-ja="地球曲率＆個別高度円モデル" data-en="Curvature & Individual Altitude Circle Model">地球曲率＆個別高度円モデル</span>
         </div>
         <div class="header-controls">
             <div class="developer-credit" data-ja="システム設計: Control" data-en="System Architect: Control">システム設計: Control</div>
@@ -128,8 +129,8 @@
             <div>
                 <div class="section-title" data-ja="② 基本操作" data-en="② Map Guide">② 基本操作</div>
                 <div class="control-group">
-                    <p style="margin: 0 0 5px 0; color: var(--success-color); font-size: 11px; font-weight: bold;" data-ja="🔵 ドラッグ: 自分のアンテナ移動（クリックでも可）" data-en="🔵 Drag: Move Your Antenna (or click map)">🔵 ドラッグ: 自分のアンテナ移動（クリックでも可）</p>
-                    <p style="margin: 0 0 5px 0; color: var(--danger-color); font-size: 11px; font-weight: bold;" data-ja="🔴 ドラッグ: ターゲット(発信源)の移動" data-en="🔴 Drag: Move Target Transmitter">🔴 ドラッグ: ターゲット(発信源)の移動</p>
+                    <p style="margin: 0 0 5px 0; color: var(--success-color); font-size: 11px; font-weight: bold;" data-ja="🔵 ドラッグ: 自分の受信アンテナ移動（緑の円が連動）" data-en="🔵 Drag: Move Your Antenna (Green coverage circle moves)">🔵 ドラッグ: 自分の受信アンテナ移動（緑の円が連動）</p>
+                    <p style="margin: 0 0 5px 0; color: var(--danger-color); font-size: 11px; font-weight: bold;" data-ja="🔴 ドラッグ: ターゲット（発信源）の移動（赤の円が連動）" data-en="🔴 Drag: Move Target Transmitter (Red horizon circle moves)">🔴 ドラッグ: ターゲット（発信源）の移動（赤の円が連動）</p>
                     <p style="margin: 0; color: var(--warning-color); font-size: 11px; font-weight: bold;" data-ja="☁️ ドラッグ: 電離層(Es層)の中心移動" data-en="☁️ Drag: Move Ionosphere (Es) Center">☁️ ドラッグ: 電離層(Es層)の中心移動</p>
                 </div>
             </div>
@@ -146,12 +147,17 @@
                 <div class="section-title" data-ja="③ 高度・電離層の微調整" data-en="③ Parameters Control">③ 高度・電離層の微調整</div>
                 <div class="control-group">
                     <div class="slider-box">
-                        <div class="slider-header"><span data-ja="自アンテナ高度:" data-en="Your Antenna Alt:">自アンテナ高度:</span><div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="100"> m</div></div>
-                        <input type="range" class="range-slider" id="alt-rx" min="0" max="100" step="0.1" value="5.8">
+                        <div class="slider-header"><span data-ja="自アンテナ高度:" data-en="Your Antenna Alt:">自アンテナ高度:</span><div><input type="number" id="num-alt-rx" class="num-input" min="0" max="30000" value="2107" style="color:var(--success-color);"> m</div></div>
+                        <input type="range" class="range-slider" id="alt-rx" min="0" max="100" step="0.1" value="26.5">
                     </div>
                     <div class="slider-box">
-                        <div class="slider-header"><span data-ja="ターゲット高度:" data-en="Target Alt:">ターゲット高度:</span><div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="10000"> m</div></div>
-                        <input type="range" class="range-slider" id="alt-tx" min="0" max="100" step="0.1" value="57.7">
+                        <div class="slider-header"><span data-ja="ターゲット（受信者）高度:" data-en="Target (Rx) Alt:">ターゲット（受信者）高度:</span><div><input type="number" id="num-alt-tx" class="num-input" min="0" max="30000" value="13147" style="color:#ffffff;"> m</div></div>
+                        <input type="range" class="range-slider" id="alt-tx" min="0" max="100" step="0.1" value="66.2">
+                    </div>
+                    <!-- 新規追加：発信源の単体高度スライダー -->
+                    <div class="slider-box" style="border-color: rgba(255,59,48,0.4);">
+                        <div class="slider-header"><span style="color:var(--danger-color);" data-ja="発信源（ターゲット）高度:" data-en="Source Transmitter Alt:">発信源（ターゲット）高度:</span><div><input type="number" id="num-alt-src" class="num-input" min="0" max="30000" value="5000" style="color:var(--danger-color);"> m</div></div>
+                        <input type="range" class="range-slider" id="alt-src" min="0" max="100" step="0.1" value="40.8">
                     </div>
                     <div class="slider-box">
                         <div class="slider-header"><span data-ja="電離層(Es層)強度:" data-en="Es Intensity:">電離層(Es層)強度:</span><div><input type="number" id="num-es" class="num-input" min="0" max="25" value="6" style="color:var(--warning-color);"> MHz</div></div>
@@ -173,14 +179,12 @@
                 <div id="info" class="info-box">プリセットを選ぶか、地図をクリックすると開始します。</div>
             </div>
 
-            <!-- 📘 【修正箇所】生テキストを綺麗な日本語に統一しました -->
             <div>
                 <details class="explain-details">
-                    <summary data-ja="📘 異常伝播（Es層反射）の計算原理" data-en="📘 Physics & Math of Es Propagation">📘 異常伝播（Es層反射）の計算原理</summary>
+                    <summary data-ja="📘 視覚化モデルと計算の原理" data-en="📘 Physics & Math of Dynamic Coverage Model">📘 視覚化モデルと計算の原理</summary>
                     <div class="explain-content">
-                        <p data-ja="<b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。" data-en="<b>1. Law of Midpoint Reflection</b><br>Radio waves reflect at the precise midpoint between the transmitter and receiver. The yellow dot (📡) marks this critical geometric point."><b>1. 中間点反射の法則</b><br>電波が電離層で跳ね返り相手に届く時、その反射ポイントは送受信マイルストーンの正確な『中間地点（真上）』になります。マップ上の黄色ドット（📡）がその位置を示します。</p>
-                        <p data-ja="<b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。" data-en="<b>2. Skip Zone (&lt; 500km)</b><br>If the distance is under 500km, the angle is too vertical. Waves penetrate the layer into space, creating a blind spot."><b>2. 跳躍距離（500kmの壁）</b><br>直線距離が500km未満の場合、入射角が垂直に近くなり、VHF波は電離層を突き抜けて宇宙へ逃げるため、異常伝播は成立しません（スキップゾーン）。</p>
-                        <p data-ja="<b>3. 1ホップ限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。" data-en="<b>3. 1-Hop Limit (~2,200km)</b><br>Due to the Earth's curvature, the maximum single-reflection distance is physically limited to around 2,200km. Beyond this, it hides behind the horizon."><b>3. 1-Hop限界（2,200kmの壁）</b><br>地球の曲率（丸み）の幾何学的限界により、1回の反射（1ホップ）で届く限界は最大約2,200kmです。これ以上は地平線に遮られます。</p>
+                        <p data-ja="<b>1. ターゲット（受信者）との合算円（緑の円）</b><br>青ピンを中心に描かれる緑の円は、元の仕様通り<b>『自アンテナ高度＋ターゲット（受信者）高度』</b>から割り出した合算の最大通信圏内を表します。" data-en="<b>1. Combined Coverage Circle (Green)</b><br>The green circle centered on your antenna shows the total reachable coverage calculated from Your Alt + Target (Rx) Alt."></p>
+                        <p data-ja="<b>2. 発信源（ターゲット）の単体円（赤の円）</b><br>新しく追加された赤丸を中心に描かれる赤い円は、今回分離・新設した<b>『発信源高度』単体による地平線（見通し距離）</b>を表します。これにより、両方の高度変化が独立して視覚化されます。" data-en="<b>2. Source Horizon Circle (Red)</b><br>The red circle centered on the target represents the transmitter's independent line-of-sight horizon based solely on its own 'Source Alt'."></p>
                     </div>
                 </details>
             </div>
@@ -201,24 +205,26 @@
     let currentLang = 'ja';
     const langDictionary = {
         ja: {
-            rxMarker: "<b>自分の観測アンテナ (ドラッグ可)</b>",
-            txLabel: "🎯 ターゲット (ドラッグ可)",
+            rxMarker: "<b>自分の受信アンテナ (ドラッグ可)</b>",
+            txLabel: "🎯 ターゲット（発信源・ドラッグ可）",
             esLabel: "Es層中心 (ドラッグ可)",
             midpointTooltip: "📡 電波反射ポイント(送受信の中間点)",
-            maxLimit: "最大限界",
+            rxHorizonStr: "ターゲット（受信者）との合算受信圏（緑の円半径）:",
+            txHorizonStr: "発信源（ターゲット）単体の見通し限界（赤の円半径）:",
+            totalHorizonStr: "通信可能となる限界距離:",
             esIntensity: "強度",
             esRange: "範囲",
             ew: "東西",
             ns: "南北",
             baseArea: "基準地域",
             interceptTitle: "🎯 ターゲット傍受リアルタイム判定:",
-            distanceStr: "・直線距離:",
+            distanceStr: "・2点間の直線距離:",
             losStr: "・通常見通し（直接波）:",
             esStr: "・VHF電離層反射（異常波）:",
-            losIn: "🟢 視界内 (直接受信中)",
-            losOut: "❌ 圏外 / 地平線の影",
+            losIn: "🟢 見通し内 (受信者の円の内側・直接波受信中)",
+            losOut: "❌ 地平線の影 (受信者の円の外側・受信不能)",
             skpZone: "圏外（スキップゾーン）",
-            skpReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 距離が近すぎるため、電波の入射角が垂直に近く、電離層を突き抜けて宇宙へ逃げ動いています。</span>",
+            skpReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 距離が近すぎるため、電波の入射角が垂直に近く、電離層を突き抜けて宇宙へ逃げています。</span>",
             limitOver: "圏外（伝搬限界超過）",
             limitReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ 1ホップ(1回反射)の物理的限界距離(2,200km)を超えているため、地球曲率の陰に隠れます。</span>",
             statusStrong: "強力（高確率で受信中）",
@@ -241,21 +247,23 @@
         },
         en: {
             rxMarker: "<b>Your Antenna (Draggable)</b>",
-            txLabel: "🎯 Target (Draggable)",
+            txLabel: "🎯 Target Transmitter (Draggable)",
             esLabel: "Es Center (Draggable)",
             midpointTooltip: "📡 Wave Reflection Point (Midpoint)",
-            maxLimit: "Max Horizon",
+            rxHorizonStr: "Combined Max Coverage with Target Rx (Green Radius):",
+            txHorizonStr: "Source Transmitter Independent Horizon (Red Radius):",
+            totalHorizonStr: "Max Direct Comm Limit:",
             esIntensity: "Intensity",
             esRange: "Range",
             ew: "E-W",
             ns: "N-S",
             baseArea: "Base Area",
             interceptTitle: "🎯 Target Intercept Real-time Status:",
-            distanceStr: "・Straight Distance:",
+            distanceStr: "・Straight Line Distance:",
             losStr: "・Line-of-Sight (Direct):",
             esStr: "・VHF Ionospheric Refl. (Anomaly):",
-            losIn: "🟢 In Sight (Direct Wave)",
-            losOut: "❌ Out of Range / Horizon Shadow",
+            losIn: "🟢 In Sight (Inside the green circle / Receivable)",
+            losOut: "❌ Horizon Shadow (Outside the green circle / Blocked)",
             skpZone: "Out of Range (Skip Zone)",
             skpReason: "<br><span style='color:var(--text-secondary); font-size:11px;'>→ Too close. The wave hits the ionosphere too vertically and escapes into space.</span>",
             limitOver: "Out of Range (Max Propagation Exceeded)",
@@ -313,7 +321,7 @@
     const measureLayerGroup = L.layerGroup().addTo(map);
 
     const overlayMaps = {
-        "通常受信エリア / Line of Sight": normalLayerGroup,
+        "通常見通しエリア / Line of Sight": normalLayerGroup,
         "VHF電離層反射エリア / Es Ellipse": esLayerGroup,
         "カスタム分析メモ / Custom Memos": memoLayerGroup,
         "距離計測ツール / Distance Measure": measureLayerGroup
@@ -322,7 +330,7 @@
     L.control.layers(baseMaps, overlayMaps, { collapsed: true }).addTo(map);
 
     let receiverMarker = null, currentLatlng = null, esCloudLocation = null, activePreset = null;
-    let targetMarker = null, targetLatlng = L.latLng(23.5, 122.0); 
+    let targetMarker = null, targetLatlng = L.latLng(20.5, 118.0); 
     let esMarker = null;
     let savedMemos = JSON.parse(localStorage.getItem('osint_memos') || '[]');
 
@@ -429,8 +437,8 @@
         measurePolyline = null;
     }
 
-    function calculateDistance(rxAlt, txAlt) {
-        return 4.12 * (Math.sqrt(rxAlt) + Math.sqrt(txAlt));
+    function calculateSingleHorizonDistance(alt_m) {
+        return 4.12 * Math.sqrt(alt_m);
     }
 
     function getMidpoint(latlng1, latlng2) {
@@ -483,15 +491,18 @@
     esRadiusYSlider.addEventListener('input', function() { esRadiusYNum.value = this.value; updateSimulation(); });
     esRadiusYNum.addEventListener('input', function() { let val = parseInt(this.value) || 50; if (val > 1000) val = 1000; this.value = val; esRadiusYSlider.value = val; updateSimulation(); });
 
-    setupLogarithmicSlider('alt-rx', 'num-alt-rx', 100); setupLogarithmicSlider('alt-tx', 'num-alt-tx', 10000);
+    // スライダーの初期値設定（画像に基づき同期）
+    setupLogarithmicSlider('alt-rx', 'num-alt-rx', 2107);
+    setupLogarithmicSlider('alt-tx', 'num-alt-tx', 13147);
+    setupLogarithmicSlider('alt-src', 'num-alt-src', 5000); // 新設：発信源のデフォルト高度
 
     function loadPreset(key) {
-        const p = geoPresets[key]; activePreset = p; esCloudLocation = L.latLng(p.lat, p.lng); targetLatlng = L.latLng(p.lat - 0.3, p.lng + 0.3);
+        const p = geoPresets[key]; activePreset = p; esCloudLocation = L.latLng(p.lat, p.lng); targetLatlng = L.latLng(p.lat - 1.5, p.lng - 2.0);
         document.getElementById('es-intensity').value = p.es; document.getElementById('num-es').value = p.es;
         document.getElementById('es-radius-x').value = p.radiusX; document.getElementById('num-es-radius-x').value = p.radiusX;
         document.getElementById('es-radius-y').value = p.radiusY; document.getElementById('num-es-radius-y').value = p.radiusY;
         map.setView([p.lat, p.lng], 5);
-        if (!currentLatlng) currentLatlng = L.latLng(p.lat - 2, p.lng + 2);
+        if (!currentLatlng) currentLatlng = L.latLng(p.lat - 0.5, p.lng + 2.5);
         updateSimulation();
     }
 
@@ -499,6 +510,7 @@
         const L10n = langDictionary[currentLang];
         const rxAlt = parseFloat(document.getElementById('num-alt-rx').value) || 0;
         const txAlt = parseFloat(document.getElementById('num-alt-tx').value) || 0;
+        const srcAlt = parseFloat(document.getElementById('num-alt-src').value) || 0;
         const esMhz = parseInt(document.getElementById('num-es').value) || 0;
         const esRadiusX = parseInt(document.getElementById('num-es-radius-x').value) || 0;
         const esRadiusY = parseInt(document.getElementById('num-es-radius-y').value) || 0;
@@ -506,12 +518,14 @@
         normalLayerGroup.clearLayers(); esLayerGroup.clearLayers();
         if (!currentLatlng) { document.getElementById('info').innerHTML = L10n.noDataPrompt; return; }
 
+        // ① 自分の受信アンテナの配置
         if (!receiverMarker) {
             receiverMarker = L.marker(currentLatlng, { draggable: true }).addTo(map);
             receiverMarker.on('dragend', function(e) { currentLatlng = e.target.getLatLng(); updateSimulation(); });
         } else { receiverMarker.setLatLng(currentLatlng); }
         receiverMarker.bindPopup(L10n.rxMarker);
 
+        // ② ターゲット(発信源)の配置
         if (!targetMarker) {
             targetMarker = L.marker(targetLatlng, {
                 draggable: true,
@@ -525,6 +539,7 @@
         } else { targetMarker.setLatLng(targetLatlng); }
         document.getElementById('tx-lbl').innerText = L10n.txLabel;
 
+        // ③ Es層中心の配置
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             if (!esMarker) {
                 esMarker = L.marker(esCloudLocation, {
@@ -540,13 +555,39 @@
             document.getElementById('es-lbl').innerText = L10n.esLabel;
         } else { if (esMarker) { map.removeLayer(esMarker); esMarker = null; } }
 
-        const baseDistanceKm = calculateDistance(rxAlt, txAlt);
-        L.circle(currentLatlng, { color: 'var(--success-color)', fillColor: 'var(--success-color)', fillOpacity: 0.12, weight: 2, radius: baseDistanceKm * 1000 }).addTo(normalLayerGroup);
-        L.polyline([currentLatlng, targetLatlng], { color: '#30a2ff', weight: 1.5, dashArray: '5, 5', opacity: 0.7 }).addTo(normalLayerGroup);
+        // 各高度による地平線見通し距離計算
+        const distRxMax = calculateSingleHorizonDistance(rxAlt); 
+        const distTxMax = calculateSingleHorizonDistance(txAlt); 
+        const distSrcMax = calculateSingleHorizonDistance(srcAlt); // 新規：発信源単体の見通し距離
 
+        // 元々の「受信システム側の通信圏（合算）」の最大定義
+        const baseDistanceKm = distRxMax + distTxMax;            
+
+        // 🟢 【完全維持】青ピンを中心とするターゲット（受信者）合算サークル
+        L.circle(currentLatlng, { color: 'var(--success-color)', fillColor: 'var(--success-color)', fillOpacity: 0.10, weight: 2, radius: baseDistanceKm * 1000 }).addTo(normalLayerGroup);
+        
+        // 🔴 【完全分離して新設】赤丸ピンを中心とする発信源の単体見通し円
+        L.circle(targetLatlng, { color: 'var(--danger-color)', fillColor: 'var(--danger-color)', fillOpacity: 0.05, weight: 1.5, radius: distSrcMax * 1000 }).addTo(normalLayerGroup);
+
+        // 2点間の直線距離
+        const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
+        
+        // ターゲット（発信源の赤丸）が緑の円に入っているかで直接波判定
+        const inNormalRange = distToTargetKm <= baseDistanceKm; 
+
+        // コネクションライン
+        L.polyline([currentLatlng, targetLatlng], { 
+            color: inNormalRange ? 'var(--success-color)' : '#30a2ff', 
+            weight: inNormalRange ? 2.5 : 1.5, 
+            dashArray: inNormalRange ? null : '5, 5', 
+            opacity: 0.8 
+        }).addTo(normalLayerGroup);
+
+        // 中間点反射ポイント
         const midpoint = getMidpoint(currentLatlng, targetLatlng);
         L.circleMarker(midpoint, { radius: 5, color: '#ffd60a', fillColor: '#ffd60a', fillOpacity: 1 }).addTo(normalLayerGroup).bindTooltip(L10n.midpointTooltip, { permanent: false, direction: 'top' });
 
+        // Es電離層の多重楕円描画
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             const strengthRatio = Math.min(1, esMhz / 22);
             createEllipsePolygon(esCloudLocation, esRadiusX, esRadiusY, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.20 + (0.35 * strengthRatio), weight: 1 + (2 * strengthRatio) }).addTo(esLayerGroup);
@@ -554,11 +595,8 @@
             createEllipsePolygon(esCloudLocation, esRadiusX * 2.0, esRadiusY * 2.0, { color: 'var(--warning-color)', fillColor: 'var(--warning-color)', fillOpacity: 0.02 + (0.08 * strengthRatio), weight: 1 }).addTo(esLayerGroup);
         }
 
-        const distToTargetKm = currentLatlng.distanceTo(targetLatlng) / 1000;
-        const inNormalRange = distToTargetKm <= baseDistanceKm;
-        
+        // Es異常伝播の判定
         let esStatus = L10n.statusOut; let esStatusColor = "#8e8e93"; let esReason = "";
-
         if (esMhz > 0 && (esRadiusX > 0 || esRadiusY > 0) && esCloudLocation) {
             const inCore = isPointInEllipse(esCloudLocation, midpoint, esRadiusX, esRadiusY);
             const inMid = isPointInEllipse(esCloudLocation, midpoint, esRadiusX * 1.5, esRadiusY * 1.5);
@@ -575,9 +613,13 @@
             }
         }
 
+        // ④ 右側分析パネルのステータス表示
         let infoHtml = `
-            <span class="badge bg-normal">${currentLang==='ja'?'通常見通しエリア':'Line of Sight Area'}</span> ${L10n.maxLimit}: <strong>約 ${Math.round(baseDistanceKm)} km</strong><br><br>
-            <span class="badge bg-es">${currentLang==='ja'?'電離層反射エリア':'Ionospheric (Es)'}</span> ${L10n.esIntensity}: <strong>${esMhz} MHz</strong> | ${L10n.esRange}: <strong>${L10n.ew} ${esRadiusX}km × ${L10n.ns} ${esRadiusY}km</strong><br>
+            <span class="badge bg-normal">${currentLang==='ja'?'受信圏内':'Coverage'}</span> ${L10n.rxHorizonStr} <strong>約 ${Math.round(baseDistanceKm)} km</strong><br>
+            <span style="font-size:11px; color:var(--text-secondary); margin-left:5px;">↳ 自高度分: 約 ${Math.round(distRxMax)} km + ターゲット(受信者)高度分: 約 ${Math.round(distTxMax)} km</span><br>
+            <span class="badge bg-source">${currentLang==='ja'?'発信源':'Source'}</span> ${L10n.txHorizonStr} <strong>約 ${Math.round(distSrcMax)} km</strong><br><br>
+            
+            <span class="badge bg-es">${currentLang==='ja'?'電離層反射':'Ionospheric'}</span> ${L10n.esIntensity}: <strong>${esMhz} MHz</strong> | ${L10n.esRange}: <strong>${L10n.ew} ${esRadiusX}km × ${L10n.ns} ${esRadiusY}km</strong><br>
         `;
 
         if (esRadiusX > 0 && activePreset) {
@@ -653,7 +695,6 @@
         }
     });
 
-    /* 🚀 【修正箇所】初回ロード時にJA言語環境を強制適用し、混在バグを完全にシャットアウトします */
     switchLanguage('ja');
 </script>
 </body>
